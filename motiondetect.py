@@ -9,9 +9,10 @@ camera = cv2.VideoCapture(0)
 sensitivity = 100.0
 throttleSeconds = 10
 throttleRemaining = 0
+runtimeSeconds = 90
 i = 0
 
-while i < 90:
+while i < runtimeSeconds:
 	print("motion detector running...")
 	i += 1
 	throttleRemaining -= 1
@@ -32,7 +33,7 @@ while i < 90:
 	if motion and throttleRemaining < 1:
 		timestr = datetime.now()
 		filename = timestr.strftime("%Y%m%d-%H:%M:%S")
-		print("==MOTION DETECT==")
+		print("==MOTION DETECTED==")
 		saveImg = "./data/" + filename + ".jpg"
 		cv2.imwrite(saveImg, image2)
 		throttleRemaining = throttleSeconds
