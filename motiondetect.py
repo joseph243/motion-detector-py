@@ -5,17 +5,27 @@ import smtplib
 import os
 from datetime import datetime
 
+#image and motion detection:
 intervalSeconds = 1
 camera = cv2.VideoCapture(0)
 sensitivity = 100.0
+
+#time settings:
+initialWakeupAfterSeconds = 300
 throttleSeconds = 10
-throttleRemaining = 0
-runtimeSeconds = 0
+throttleRemaining = 10
+runtimeSeconds = 300
+
+#email api secrets:
 secrets_local_file = "~/.ssh/email.key"
 email_secrets = {}
 
+#notification settings:
+notificationFrequencyMinutes = 60
+lastNotifiedTime = time.time() - (notificationFrequencyMinutes * 60)
+
 def read_email_secrets(inPath):
-	print("reading email secrets" + inPath)
+	print("reading email secrets from " + inPath)
 	inPath = os.path.expanduser(inPath)
 	with (open(inPath)) as file:
 		for line in file:
@@ -39,8 +49,7 @@ def send_notification(inImage):
 	token = email_secrets["token"]
 	server = email_secrets["server"]
 	notifyAddress = email_secrets["sendto"]
-	port = int(email_secrets["port"])
-	
+	port = int(email_secrets["port"])	
 	connection = smtplib.SMTP(server, port)
 	connection.starttls()
 	connection.login(username, token)
@@ -48,6 +57,7 @@ def send_notification(inImage):
 	connection.quit
 
 read_email_secrets(secrets_local_file)
+# time.sleep(initialWakeupAfterSeconds)
 
 i = 0
 while i < runtimeSeconds:
@@ -59,22 +69,28 @@ while i < runtimeSeconds:
 		ret, image1 = camera.read()
 		time.sleep(intervalSeconds)
 		ret, image2 = camera.read()
-		### mean square something to compare frames:
+		### mean squared error to compare frames:
 		mse = numpy.sum((image1.astype("float") - image2.astype("float")) ** 2)
 		mse /= float(image1.shape[0] * image1.shape[1] * image1.shape[2])
 		###
 		motion = mse > sensitivity
 	else:
+		motion = False
 		time.sleep(intervalSeconds)
 
-	if motion and throttleRemaining < 1:
+	if motion:
 		print("==MOTION DETECTED==")
-		capture_and_save_image(image2)
+		#capture_and_save_image(image2)
 		throttleRemaining = throttleSeconds
 
+	timeSinceLastNotification = (time.time() - lastNotifiedTime)
+	minutesElapsed, r = divmod(timeSinceLastNotification, 60)
+	if motion:
+		if minutesElapsed > notificationFrequencyMinutes:
+			lastNotifiedTime = time.time()
+			send_notification("")
+		else:
+			print("did not notify, only " + str(minutesElapsed) + " minutes has passed.")
+	
 print("closing camera and end motion detect")
 camera.release()
-
-while True:
-	print("testing")
-	print(time.time())
