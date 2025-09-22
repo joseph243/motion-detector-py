@@ -69,7 +69,7 @@ def send_notification(inImageData):
 def main():
 	read_email_secrets(secrets_local_file)
 	print("startup sleeping for " + str(initialWakeupAfterSeconds) + " seconds")
-	#time.sleep(initialWakeupAfterSeconds)
+	time.sleep(initialWakeupAfterSeconds)
 	i = 0
 	throttleRemaining = 10
 	lastNotifiedTime = time.time() - (notificationFrequencyMinutes * 60)
