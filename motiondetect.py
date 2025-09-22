@@ -18,7 +18,6 @@ savedImagePath = ""
 #time settings:
 initialWakeupAfterSeconds = 300
 throttleSeconds = 10
-throttleRemaining = 10
 runtimeSeconds = 300
 
 #email api secrets:
@@ -27,7 +26,6 @@ email_secrets = {}
 
 #notification settings:
 notificationFrequencyMinutes = 60
-lastNotifiedTime = time.time() - (notificationFrequencyMinutes * 60)
 
 def read_email_secrets(inPath):
 	print("reading email secrets from " + inPath)
@@ -49,21 +47,19 @@ def capture_and_save_image(inImage):
 	cv2.imwrite(saveLoc, inImage)
 	return saveLoc
 
-def send_notification(inImagePath):
+def send_notification(inImageData):
 	print("sending notification...")
 	username = email_secrets["username"]
 	token = email_secrets["token"]
 	server = email_secrets["server"]
 	notifyAddress = email_secrets["sendto"]
 	port = int(email_secrets["port"])
-	with open(inImagePath, 'rb') as file:
-		img_data = file.read()
 	message = MIMEMultipart()
 	message['From'] = username
 	message['To'] = notifyAddress
 	message['Subject'] = cameraName
 	message.attach(MIMEText("Motion Detected:"))
-	message.attach(MIMEImage(img_data))
+	message.attach(MIMEImage(inImageData))
 	connection = smtplib.SMTP(server, port)
 	connection.starttls()
 	connection.login(username, token)
@@ -73,8 +69,10 @@ def send_notification(inImagePath):
 def main():
 	read_email_secrets(secrets_local_file)
 	print("startup sleeping for " + str(initialWakeupAfterSeconds) + " seconds")
-	time.sleep(initialWakeupAfterSeconds)
+	#time.sleep(initialWakeupAfterSeconds)
 	i = 0
+	throttleRemaining = 10
+	lastNotifiedTime = time.time() - (notificationFrequencyMinutes * 60)
 	while i < runtimeSeconds:
 		runningMessage = "motion detector running..."
 		i += 1
@@ -98,7 +96,7 @@ def main():
 
 		if motion:
 			print("==MOTION DETECTED==")
-			savedImagePath = capture_and_save_image(image2)
+			#save image as file:  savedImagePath = capture_and_save_image(image2)
 			throttleRemaining = throttleSeconds
 
 		timeSinceLastNotification = (time.time() - lastNotifiedTime)
@@ -106,7 +104,9 @@ def main():
 		if motion:
 			if minutesElapsed > notificationFrequencyMinutes:
 				lastNotifiedTime = time.time()
-				send_notification(savedImagePath)
+				success, buffer = cv2.imencode('.jpg', image2)
+				if (success):
+					send_notification(buffer.tobytes())
 			else:
 				print("did not notify, only " + str(minutesElapsed) + " minutes has passed.")
 		
