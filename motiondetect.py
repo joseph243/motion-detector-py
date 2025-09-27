@@ -9,16 +9,16 @@ from email.mime.image import MIMEImage
 from email.mime.text import MIMEText
 
 #image and motion detection:
-intervalSeconds = 1
+intervalSeconds = 5
 camera = cv2.VideoCapture(0)
 sensitivity = 100.0
 cameraName = "Camera 001"
 savedImagePath = ""
 
 #time settings:
-initialWakeupAfterSeconds = 300
+initialWakeupAfterSeconds = 0
 throttleSeconds = 10
-runtimeSeconds = 300
+runtimeSeconds =  300 #28800 #28800 = 8 hours
 
 #email api secrets:
 secrets_local_file = "~/.ssh/email.key"
@@ -26,6 +26,19 @@ email_secrets = {}
 
 #notification settings:
 notificationFrequencyMinutes = 60
+
+def find_active_camera():
+	maxRange = 20
+	success = False
+	for i in range(-2, maxRange):
+		print("trying camera " + str(i))
+		camera = cv2.VideoCapture(i)
+		if (camera.isOpened()):
+			print("camera found at /dev/video" + str(i))
+			success = True
+			break
+		time.sleep(1)
+	assert success, "camera must be found to proceed"
 
 def read_email_secrets(inPath):
 	print("reading email secrets from " + inPath)
@@ -43,12 +56,13 @@ def read_email_secrets(inPath):
 def capture_and_save_image(inImage):
 	timestr = datetime.now()
 	filename = timestr.strftime("%Y%m%d-%H:%M:%S")
-	saveLoc = "./data/" + filename + ".jpg"
+	saveLoc = filename + ".jpg"
 	cv2.imwrite(saveLoc, inImage)
 	return saveLoc
 
 def send_notification(inImageData):
-	print("sending notification...")
+	datestr = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+	print("sending notification at " + datestr)
 	username = email_secrets["username"]
 	token = email_secrets["token"]
 	server = email_secrets["server"]
@@ -58,7 +72,7 @@ def send_notification(inImageData):
 	message['From'] = username
 	message['To'] = notifyAddress
 	message['Subject'] = cameraName
-	message.attach(MIMEText("Motion Detected:"))
+	message.attach(MIMEText("Motion Detected at " + datestr + ": "))
 	message.attach(MIMEImage(inImageData))
 	connection = smtplib.SMTP(server, port)
 	connection.starttls()
@@ -66,37 +80,45 @@ def send_notification(inImageData):
 	connection.sendmail(username,notifyAddress, message.as_string())
 	connection.quit
 
+def compareImages(inImage1, inImage2):
+	score = numpy.sum((inImage1.astype("float") - inImage2.astype("float")) ** 2)
+	score /= float(inImage1.shape[0] * inImage1.shape[1] * inImage1.shape[2])
+	return score > sensitivity
+
 def main():
 	read_email_secrets(secrets_local_file)
 	print("startup sleeping for " + str(initialWakeupAfterSeconds) + " seconds")
 	time.sleep(initialWakeupAfterSeconds)
+	print("startup sleep over.  running ...")
 	i = 0
 	throttleRemaining = 10
 	lastNotifiedTime = time.time() - (notificationFrequencyMinutes * 60)
 	while i < runtimeSeconds:
-		runningMessage = "motion detector running..."
-		i += 1
+		runningMessage = str(i) + "motion detector running..."
+		i += intervalSeconds
 		throttleRemaining -= 1
 		motion = False
+		mse = 0.0
 		if throttleRemaining < 1:
 			ret, image1 = camera.read()
 			time.sleep(intervalSeconds)
 			ret, image2 = camera.read()
 			### mean squared error to compare frames:
-			mse = numpy.sum((image1.astype("float") - image2.astype("float")) ** 2)
-			mse /= float(image1.shape[0] * image1.shape[1] * image1.shape[2])
+			#mse = numpy.sum((image1.astype("float") - image2.astype("float")) ** 2)
+			#mse /= float(image1.shape[0] * image1.shape[1] * image1.shape[2])
 			###
-			motion = mse > sensitivity
+			#motion = mse > sensitivity
+			motion = compareImages(image1, image2)
 		else:
-			runningMessage += "(throttled)"
+			runningMessage += "(throttled) "
 			motion = False
 			time.sleep(intervalSeconds)
 		
-		print(runningMessage)
+		print(runningMessage + str(round((runtimeSeconds - i)/60)) + " minutes remain")
 
 		if motion:
 			print("==MOTION DETECTED==")
-			#save image as file:  savedImagePath = capture_and_save_image(image2)
+			time.sleep(2)
 			throttleRemaining = throttleSeconds
 
 		timeSinceLastNotification = (time.time() - lastNotifiedTime)
@@ -106,7 +128,8 @@ def main():
 				lastNotifiedTime = time.time()
 				success, buffer = cv2.imencode('.jpg', image2)
 				if (success):
-					send_notification(buffer.tobytes())
+					print("fake notify debug")
+					#send_notification(buffer.tobytes())
 			else:
 				print("did not notify, only " + str(minutesElapsed) + " minutes has passed.")
 		
