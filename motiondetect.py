@@ -88,6 +88,13 @@ def compareImages(inImage1, inImage2, sensitivity):
 	score /= float(inImage1.shape[0] * inImage1.shape[1] * inImage1.shape[2])
 	return score > sensitivity
 
+def cameraprimer():
+	camera.read()
+	time.sleep(1)
+	camera.read()
+	camera.read()
+	camera.read()
+
 def main():
 	configs = read_config_file(config_local_file)
 	notificationFrequency = timedelta(minutes=int(configs["notificationFrequencyMinutes"]))
@@ -107,6 +114,7 @@ def main():
 	print("notification frequency is " + str(notificationFrequency))
 	print("startup wait is " + str(wakeupTime))
 	print("compare interval is " + str(intervalTime))
+
 	while(True):
 		current_time = datetime.now()
 		if (runtimeMaximum < (current_time - startTime)):
@@ -124,7 +132,7 @@ def main():
 			print("notifications blocked...")
 			time.sleep(60)
 			continue
-		###we beat all the time limits, actually check the camera now:
+		cameraprimer()
 		print("checking for motion...")
 		ret, image1 = camera.read()
 		time.sleep(int(configs["intervalSecondsBetweenImages"]))
