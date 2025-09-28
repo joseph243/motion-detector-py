@@ -105,7 +105,7 @@ def main():
 	sensitivity = int(configs["sensitivityRating"])
 
 	startTime = datetime.now()
-	last_notification = datetime.now()
+	last_notification = datetime.now() - notificationFrequency
 	last_throttled = datetime.now()
 
 	print("started at " + str(startTime))
