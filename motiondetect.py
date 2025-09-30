@@ -149,8 +149,8 @@ def main():
 			last_notification = current_time
 			success, buffer = cv2.imencode('.jpg', image2)
 			if (success):
-					print("==============NOTIFY SENT !")
-					#send_notification(buffer.tobytes())
+					#print("==============NOTIFY SENT DEBUG!")
+					send_notification(buffer.tobytes())
 
 	print("closing camera and end motion detect")
 	camera.release()
