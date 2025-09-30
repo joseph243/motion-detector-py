@@ -93,6 +93,9 @@ def cameraprimer():
 	time.sleep(1)
 	camera.read()
 	camera.read()
+	time.sleep(5)
+	camera.read()
+	camera.read()
 	camera.read()
 
 def main():
@@ -115,7 +118,10 @@ def main():
 	print("startup wait is " + str(wakeupTime))
 	print("compare interval is " + str(intervalTime))
 
+	cameraprimer()
+
 	while(True):
+		camera.read()
 		current_time = datetime.now()
 		if (runtimeMaximum < (current_time - startTime)):
 			print("total runtime expired, exiting.")
@@ -132,7 +138,6 @@ def main():
 			print("notifications blocked...")
 			time.sleep(60)
 			continue
-		cameraprimer()
 		print("checking for motion...")
 		ret, image1 = camera.read()
 		time.sleep(int(configs["intervalSecondsBetweenImages"]))
@@ -144,7 +149,7 @@ def main():
 			last_notification = current_time
 			success, buffer = cv2.imencode('.jpg', image2)
 			if (success):
-					#print("==============NOTIFY SENT !")
+					#print("==============NOTIFY SENT DEBUG!")
 					send_notification(buffer.tobytes())
 
 	print("closing camera and end motion detect")
