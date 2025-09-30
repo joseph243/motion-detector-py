@@ -5,7 +5,7 @@ from email.mime.image import MIMEImage
 from email.mime.text import MIMEText
 
 camera = cv2.VideoCapture(0)
-cameraName = "Camera 001"
+cameraName = "DefaultCamera000"
 
 #email api secrets:
 secrets_local_file = "~/.ssh/email.key"
@@ -53,6 +53,8 @@ def read_config_file(inPath):
 	assert "sensitivityRating" in configs, "config file at " + inPath + " must contain sensitivityRating."
 	assert "shutDownAfterMinutes" in configs, "config file at " + inPath + " must contain shutDownAfterMinutes."
 	assert "notificationFrequencyMinutes" in configs, "config file at " + inPath + " must contain notificationFrequencyMinutes"
+	assert "notificationsAllowed" in configs, "config file at " + inPath + " must contain notificationsAllowed"
+	assert "cameraName" in configs, "config file at " + inPath + " must contain cameraName"
 	return configs
 
 def capture_and_save_image(inImage):
@@ -100,6 +102,8 @@ def cameraprimer():
 
 def main():
 	configs = read_config_file(config_local_file)
+	cameraName = configs["cameraName"]
+	notificationsAllowedInConfig = configs["notificationsAllowed"]
 	notificationFrequency = timedelta(minutes=int(configs["notificationFrequencyMinutes"]))
 	wakeupTime = timedelta(minutes=int(configs["wakeUpAfterMinutes"]))
 	intervalTime = timedelta(seconds=int(configs["intervalSecondsBetweenImages"]))
@@ -114,10 +118,15 @@ def main():
 	print("started at " + str(startTime))
 	print("throttle time is " + str(throttleTime))
 	print("runtime is " + str(runtimeMaximum))
-	print("notification frequency is " + str(notificationFrequency))
 	print("startup wait is " + str(wakeupTime))
 	print("compare interval is " + str(intervalTime))
 
+	if (notificationsAllowedInConfig):
+		print("Notifications are enabled with frequency of " + str(notificationFrequency)
+	else:
+		print("Notifications are disabled")
+
+	print("initializing " + cameraName)
 	cameraprimer()
 
 	while(True):
@@ -127,7 +136,7 @@ def main():
 			print("total runtime expired, exiting.")
 			break
 		if (wakeupTime > (current_time - startTime)):
-			print("waking up...")
+			print("wake up delay...")
 			time.sleep(60)
 			continue
 		if (throttleTime > (current_time - last_throttled)):
@@ -147,10 +156,14 @@ def main():
 			print("MOTION DETECTED")
 			last_throttled = current_time
 			last_notification = current_time
-			success, buffer = cv2.imencode('.jpg', image2)
-			if (success):
-					#print("==============NOTIFY SENT DEBUG!")
+			encodeImgSuccess, buffer = cv2.imencode('.jpg', image2)
+			if (encodeImgSuccess):
+				if (notificationsAllowedInConfig):
+					print("==============NOTIFY WOULD HAVE BEEN SENT BUT NOTIFICATIONS ARE DISABLED!")
+				else:
 					send_notification(buffer.tobytes())
+			else:
+				print("FAILURE ENCODING IMAGE FOR NOTIFICATION!!"
 
 	print("closing camera and end motion detect")
 	camera.release()
