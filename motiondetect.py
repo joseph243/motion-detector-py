@@ -30,8 +30,9 @@ def read_email_secrets(inPath):
 	output = {}
 	with (open(inPath)) as file:
 		for line in file:
-			key, value = line.split(':', 1)
-			output[key.strip()] = value.strip()
+			if ":" in line:
+				key, value = line.split(':', 1)
+				output[key.strip()] = value.strip()
 	assert "username" in output, "secrets file at " + secrets_local_file + " must contain username."
 	assert "token" in output, "secrets file at " + secrets_local_file + " must contain token."
 	assert "server" in output, "secrets file at " + secrets_local_file + " must contain server address."
@@ -45,8 +46,9 @@ def read_config_file(inPath):
 	configs = {}
 	with (open(inPath)) as file:
 		for line in file:
-			key, value = line.split(':', 1)
-			configs[key.strip()] = value.strip()
+			if ":" in line:
+				key, value = line.split(':', 1)
+				configs[key.strip()] = value.strip()
 	assert "wakeUpAfterMinutes" in configs, "config file at " + inPath + " must contain wakeUpAfterMinutes."
 	assert "intervalSecondsBetweenImages" in configs, "config file at " + inPath + " must contain intervalSecondsBetweenImages."
 	assert "throttleSecondsAfterMotion" in configs, "config file at " + inPath + " must contain throttleSecondsAfterMotion."
@@ -102,8 +104,9 @@ def cameraprimer():
 
 def main():
 	configs = read_config_file(config_local_file)
+	global cameraName
 	cameraName = configs["cameraName"]
-	notificationsAllowedInConfig = configs["notificationsAllowed"]
+	notificationsAllowed = ("True" in configs["notificationsAllowed"])
 	notificationFrequency = timedelta(minutes=int(configs["notificationFrequencyMinutes"]))
 	wakeupTime = timedelta(minutes=int(configs["wakeUpAfterMinutes"]))
 	intervalTime = timedelta(seconds=int(configs["intervalSecondsBetweenImages"]))
@@ -115,16 +118,22 @@ def main():
 	last_notification = datetime.now() - notificationFrequency
 	last_throttled = datetime.now()
 
-	print("started at " + str(startTime))
-	print("throttle time is " + str(throttleTime))
-	print("runtime is " + str(runtimeMaximum))
-	print("startup wait is " + str(wakeupTime))
-	print("compare interval is " + str(intervalTime))
+	print("")
+	print("monitoring started at " + startTime.strftime("%Y-%m-%d %H:%M:%S"))
+	print("-----------------------------------------")
+	print("throttle time is      " + str(throttleTime))
+	print("runtime is            " + str(runtimeMaximum))
+	print("startup wait is       " + str(wakeupTime))
+	print("compare interval is   " + str(intervalTime))
+	print("-----------------------------------------")
+	print("")
 
-	if (notificationsAllowedInConfig):
-		print("Notifications are enabled with frequency of " + str(notificationFrequency)
+	if (notificationsAllowed):
+		print("Notifications are enabled with frequency of " + str(notificationFrequency))
 	else:
 		print("Notifications are disabled")
+
+	print("")
 
 	print("initializing " + cameraName)
 	cameraprimer()
@@ -158,13 +167,12 @@ def main():
 			last_notification = current_time
 			encodeImgSuccess, buffer = cv2.imencode('.jpg', image2)
 			if (encodeImgSuccess):
-				if (notificationsAllowedInConfig):
-					print("==============NOTIFY WOULD HAVE BEEN SENT BUT NOTIFICATIONS ARE DISABLED!")
-				else:
+				if (notificationsAllowed):
 					send_notification(buffer.tobytes())
+				else:
+					print("NOTIFICATION WOULD HAVE BEEN SENT BUT NOTIFICATIONS ARE DISABLED!")
 			else:
-				print("FAILURE ENCODING IMAGE FOR NOTIFICATION!!"
-
+				print("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
 	print("closing camera and end motion detect")
 	camera.release()
 
