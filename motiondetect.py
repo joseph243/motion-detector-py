@@ -5,7 +5,7 @@ from email.mime.image import MIMEImage
 from email.mime.text import MIMEText
 
 camera = cv2.VideoCapture(0)
-cameraName = "Camera 001"
+cameraName = "DefaultCamera000"
 
 #email api secrets:
 secrets_local_file = "~/.ssh/email.key"
@@ -30,8 +30,9 @@ def read_email_secrets(inPath):
 	output = {}
 	with (open(inPath)) as file:
 		for line in file:
-			key, value = line.split(':', 1)
-			output[key.strip()] = value.strip()
+			if ":" in line:
+				key, value = line.split(':', 1)
+				output[key.strip()] = value.strip()
 	assert "username" in output, "secrets file at " + secrets_local_file + " must contain username."
 	assert "token" in output, "secrets file at " + secrets_local_file + " must contain token."
 	assert "server" in output, "secrets file at " + secrets_local_file + " must contain server address."
@@ -45,14 +46,17 @@ def read_config_file(inPath):
 	configs = {}
 	with (open(inPath)) as file:
 		for line in file:
-			key, value = line.split(':', 1)
-			configs[key.strip()] = value.strip()
+			if ":" in line:
+				key, value = line.split(':', 1)
+				configs[key.strip()] = value.strip()
 	assert "wakeUpAfterMinutes" in configs, "config file at " + inPath + " must contain wakeUpAfterMinutes."
 	assert "intervalSecondsBetweenImages" in configs, "config file at " + inPath + " must contain intervalSecondsBetweenImages."
 	assert "throttleSecondsAfterMotion" in configs, "config file at " + inPath + " must contain throttleSecondsAfterMotion."
 	assert "sensitivityRating" in configs, "config file at " + inPath + " must contain sensitivityRating."
 	assert "shutDownAfterMinutes" in configs, "config file at " + inPath + " must contain shutDownAfterMinutes."
 	assert "notificationFrequencyMinutes" in configs, "config file at " + inPath + " must contain notificationFrequencyMinutes"
+	assert "notificationsAllowed" in configs, "config file at " + inPath + " must contain notificationsAllowed"
+	assert "cameraName" in configs, "config file at " + inPath + " must contain cameraName"
 	return configs
 
 def capture_and_save_image(inImage):
@@ -100,6 +104,9 @@ def cameraprimer():
 
 def main():
 	configs = read_config_file(config_local_file)
+	global cameraName
+	cameraName = configs["cameraName"]
+	notificationsAllowed = ("True" in configs["notificationsAllowed"])
 	notificationFrequency = timedelta(minutes=int(configs["notificationFrequencyMinutes"]))
 	wakeupTime = timedelta(minutes=int(configs["wakeUpAfterMinutes"]))
 	intervalTime = timedelta(seconds=int(configs["intervalSecondsBetweenImages"]))
@@ -111,13 +118,24 @@ def main():
 	last_notification = datetime.now() - notificationFrequency
 	last_throttled = datetime.now()
 
-	print("started at " + str(startTime))
-	print("throttle time is " + str(throttleTime))
-	print("runtime is " + str(runtimeMaximum))
-	print("notification frequency is " + str(notificationFrequency))
-	print("startup wait is " + str(wakeupTime))
-	print("compare interval is " + str(intervalTime))
+	print("")
+	print("monitoring started at " + startTime.strftime("%Y-%m-%d %H:%M:%S"))
+	print("-----------------------------------------")
+	print("throttle time is      " + str(throttleTime))
+	print("runtime is            " + str(runtimeMaximum))
+	print("startup wait is       " + str(wakeupTime))
+	print("compare interval is   " + str(intervalTime))
+	print("-----------------------------------------")
+	print("")
 
+	if (notificationsAllowed):
+		print("Notifications are enabled with frequency of " + str(notificationFrequency))
+	else:
+		print("Notifications are disabled")
+
+	print("")
+
+	print("initializing " + cameraName)
 	cameraprimer()
 
 	while(True):
@@ -127,7 +145,7 @@ def main():
 			print("total runtime expired, exiting.")
 			break
 		if (wakeupTime > (current_time - startTime)):
-			print("waking up...")
+			print("wake up delay...")
 			time.sleep(60)
 			continue
 		if (throttleTime > (current_time - last_throttled)):
@@ -147,11 +165,14 @@ def main():
 			print("MOTION DETECTED")
 			last_throttled = current_time
 			last_notification = current_time
-			success, buffer = cv2.imencode('.jpg', image2)
-			if (success):
-					#print("==============NOTIFY SENT DEBUG!")
+			encodeImgSuccess, buffer = cv2.imencode('.jpg', image2)
+			if (encodeImgSuccess):
+				if (notificationsAllowed):
 					send_notification(buffer.tobytes())
-
+				else:
+					print("NOTIFICATION WOULD HAVE BEEN SENT BUT NOTIFICATIONS ARE DISABLED!")
+			else:
+				print("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
 	print("closing camera and end motion detect")
 	camera.release()
 
