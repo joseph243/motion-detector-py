@@ -70,7 +70,6 @@ def capture_and_save_image(inImage):
 def send_notification(inImageData):
 	email_secrets = read_email_secrets(secrets_local_file)
 	datestr = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-	print("sending notification at " + datestr)
 	username = email_secrets["username"]
 	token = email_secrets["token"]
 	server = email_secrets["server"]
@@ -102,6 +101,10 @@ def cameraprimer():
 	camera.read()
 	camera.read()
 	camera.read()
+
+def log(inLogEntry):
+	dateString = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+	print(dateString + " cameraLog: " + inLogEntry)
 
 def main():
 	configs = read_config_file(config_local_file)
@@ -144,41 +147,41 @@ def main():
 		camera.read()
 		current_time = datetime.now()
 		if (runtimeMaximum < (current_time - startTime)):
-			print("total runtime expired, exiting.")
+			log("total runtime expired, exiting.")
 			break
 		if (wakeupTime > (current_time - startTime)):
-			print("wake up delay...")
+			log("wake up delay...")
 			time.sleep(60)
 			continue
 		if (throttleTime > (current_time - last_throttled)):
-			print("throttled...")
+			log("throttled...")
 			time.sleep(1)
 			continue
 		notificationCooldown = notificationFrequency > (current_time - last_notification)
-		print("checking for motion...")
+		log("checking for motion...")
 		ret, image1 = camera.read()
 		time.sleep(int(configs["intervalSecondsBetweenImages"]))
 		ret, image2 = camera.read()
 		motion = compareImages(image1, image2, sensitivity)
 		if (motion):
-			print("MOTION DETECTED")
+			log("MOTION DETECTED")
 			last_throttled = current_time
 			last_notification = current_time
 			encodeImgSuccess, buffer = cv2.imencode('.jpg', image2)
 			if (encodeImgSuccess):
 				if (notificationsAllowed and not notificationCooldown):
-					print("notification sent.")
+					log("notification sent.")
 					send_notification(buffer.tobytes())
 				else:
-					print("notifications are disabled.")
+					log("notifications are disabled.")
 				if (savePictures):
-					print("image saved.")
+					log("image saved.")
 					capture_and_save_image(image2)
 				else:
-					print("saved images are disabled.")
+					log("saved images are disabled.")
 			else:
-				print("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
-	print("closing camera and end motion detect")
+				log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
+	log("closing camera and end motion detect")
 	camera.release()
 
 if __name__ == "__main__":
