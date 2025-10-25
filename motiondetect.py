@@ -106,6 +106,13 @@ def log(inLogEntry):
 	dateString = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 	print(dateString + " cameraLog: " + inLogEntry)
 
+def encodeImageWithText(inImage, inText):
+	height, *_ = inImage.shape
+	buffer = 10
+	position = (buffer, height-buffer)
+	cv2.putText(inImage, str(inText), position, cv2.FONT_HERSHEY_DUPLEX, 1, (0,0,0), 2, cv2.LINE_AA)
+	return inImage
+
 def main():
 	configs = read_config_file(config_local_file)
 	global cameraName
@@ -167,6 +174,7 @@ def main():
 			log("MOTION DETECTED")
 			last_throttled = current_time
 			last_notification = current_time
+			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
 			encodeImgSuccess, buffer = cv2.imencode('.jpg', image2)
 			if (encodeImgSuccess):
 				if (notificationsAllowed and not notificationCooldown):
