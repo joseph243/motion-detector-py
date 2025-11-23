@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.mime.text import MIMEText
+from mjpegStreamer import MJPEGStreamer
 
 camera = cv2.VideoCapture(0)
 cameraName = "DefaultCamera000"
@@ -42,6 +43,19 @@ def read_email_secrets(inPath):
 
 def read_config_file(inPath):
 	print("reading configuration from " + inPath)
+	expectedFields = [
+    "wakeUpAfterMinutes",
+    "intervalSecondsBetweenImages",
+    "throttleSecondsAfterMotion",
+    "sensitivityRating",
+    "shutDownAfterMinutes",
+    "notificationFrequencyMinutes",
+    "notificationsAllowed",
+    "cameraName",
+    "savePictures",
+    "logLevel",
+    "streaming"
+	]
 	inPath = os.path.expanduser(inPath)
 	configs = {}
 	with (open(inPath)) as file:
@@ -49,16 +63,8 @@ def read_config_file(inPath):
 			if ":" in line:
 				key, value = line.split(':', 1)
 				configs[key.strip()] = value.strip()
-	assert "wakeUpAfterMinutes" in configs, "config file at " + inPath + " must contain wakeUpAfterMinutes."
-	assert "intervalSecondsBetweenImages" in configs, "config file at " + inPath + " must contain intervalSecondsBetweenImages."
-	assert "throttleSecondsAfterMotion" in configs, "config file at " + inPath + " must contain throttleSecondsAfterMotion."
-	assert "sensitivityRating" in configs, "config file at " + inPath + " must contain sensitivityRating."
-	assert "shutDownAfterMinutes" in configs, "config file at " + inPath + " must contain shutDownAfterMinutes."
-	assert "notificationFrequencyMinutes" in configs, "config file at " + inPath + " must contain notificationFrequencyMinutes"
-	assert "notificationsAllowed" in configs, "config file at " + inPath + " must contain notificationsAllowed"
-	assert "cameraName" in configs, "config file at " + inPath + " must contain cameraName"
-	assert "savePictures" in configs, "config file at " + inPath + " must contain savePictures"
-	assert "logLevel" in configs, "config file at " + inPath + " must contain logLevel"
+	for field in expectedFields:
+		assert field in configs, f"config file at {inPath} must contain {field}."
 	return configs
 
 def capture_and_save_image(inImage):
@@ -128,6 +134,7 @@ def main():
 	runtimeMaximum = timedelta(minutes=int(configs["shutDownAfterMinutes"]))
 	sensitivity = int(configs["sensitivityRating"])
 	savePictures = ("True" in configs["savePictures"])
+	streaming = ("True" in configs["streaming"])
 
 	startTime = datetime.now()
 	last_notification = datetime.now() - notificationFrequency
@@ -145,14 +152,23 @@ def main():
 	print("")
 
 	if (notificationsAllowed):
-		print("Notifications are enabled with frequency of " + str(notificationFrequency))
+		print("Notifications are enabled   with frequency of " + str(notificationFrequency))
 	else:
 		print("Notifications are disabled")
+
+	if (streaming):
+		print("Streaming is      enabled")
+		streamer = MJPEGStreamer(camera, port=8080, path="/video")
+		streamer.start()
+	else:
+		print("Streaming is      disabled")
 
 	print("")
 
 	print("initializing " + cameraName)
 	cameraprimer()
+
+
 
 	while(True):
 		camera.read()
