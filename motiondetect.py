@@ -58,6 +58,7 @@ def read_config_file(inPath):
 	assert "notificationsAllowed" in configs, "config file at " + inPath + " must contain notificationsAllowed"
 	assert "cameraName" in configs, "config file at " + inPath + " must contain cameraName"
 	assert "savePictures" in configs, "config file at " + inPath + " must contain savePictures"
+	assert "logLevel" in configs, "config file at " + inPath + " must contain logLevel"
 	return configs
 
 def capture_and_save_image(inImage):
@@ -116,6 +117,8 @@ def encodeImageWithText(inImage, inText):
 def main():
 	configs = read_config_file(config_local_file)
 	global cameraName
+	global logLevel
+	logLevel = int(configs["logLevel"])
 	cameraName = configs["cameraName"]
 	notificationsAllowed = ("True" in configs["notificationsAllowed"])
 	notificationFrequency = timedelta(minutes=int(configs["notificationFrequencyMinutes"]))
@@ -137,6 +140,7 @@ def main():
 	print("runtime is            " + str(runtimeMaximum))
 	print("startup wait is       " + str(wakeupTime))
 	print("compare interval is   " + str(intervalTime))
+	print("logLevel is           " + str(logLevel))
 	print("-----------------------------------------")
 	print("")
 
@@ -165,7 +169,8 @@ def main():
 			time.sleep(1)
 			continue
 		notificationCooldown = notificationFrequency > (current_time - last_notification)
-		log("checking for motion...")
+		if (logLevel > 0):
+			log("checking for motion...")
 		ret, image1 = camera.read()
 		time.sleep(int(configs["intervalSecondsBetweenImages"]))
 		ret, image2 = camera.read()
@@ -173,13 +178,16 @@ def main():
 		if (motion):
 			log("MOTION DETECTED")
 			last_throttled = current_time
-			last_notification = current_time
 			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
 			encodeImgSuccess, buffer = cv2.imencode('.jpg', image2)
 			if (encodeImgSuccess):
-				if (notificationsAllowed and not notificationCooldown):
-					log("notification sent.")
-					send_notification(buffer.tobytes())
+				if (notificationsAllowed):
+					if (notificationCooldown):
+						log("notifications are allowed, but on cooldown.")
+					else:
+						log("notification sent.")
+						last_notification = current_time
+						send_notification(buffer.tobytes())
 				else:
 					log("notifications are disabled.")
 				if (savePictures):
