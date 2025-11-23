@@ -158,7 +158,7 @@ def main():
 
 	if (streaming):
 		print("Streaming is      enabled")
-		streamer = MJPEGStreamer(camera, port=8080, path="/video")
+		streamer = MJPEGStreamer(camera, port=8080, path="/video" jpeg_quality=50)
 		streamer.start()
 	else:
 		print("Streaming is      disabled")
@@ -167,8 +167,6 @@ def main():
 
 	print("initializing " + cameraName)
 	cameraprimer()
-
-
 
 	while(True):
 		camera.read()
