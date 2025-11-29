@@ -54,7 +54,8 @@ def read_config_file(inPath):
     "cameraName",
     "savePictures",
     "logLevel",
-    "streaming"
+    "streaming",
+    "finalPicture"
 	]
 	inPath = os.path.expanduser(inPath)
 	configs = {}
@@ -95,9 +96,13 @@ def send_notification(inImageData):
 	connection.quit
 
 def compareImages(inImage1, inImage2, sensitivity):
-	score = numpy.sum((inImage1.astype("float") - inImage2.astype("float")) ** 2)
-	score /= float(inImage1.shape[0] * inImage1.shape[1] * inImage1.shape[2])
-	return score > sensitivity
+	try:
+		score = numpy.sum((inImage1.astype("float") - inImage2.astype("float")) ** 2)
+		score /= float(inImage1.shape[0] * inImage1.shape[1] * inImage1.shape[2])
+		return score > sensitivity
+	except (AttributeError):
+		log("IMAGE COMPARE ERROR, CAMERA NOT DETECTED?.")
+		return False
 
 def cameraprimer():
 	camera.read()
@@ -135,6 +140,7 @@ def main():
 	sensitivity = int(configs["sensitivityRating"])
 	savePictures = ("True" in configs["savePictures"])
 	streaming = ("True" in configs["streaming"])
+	finalPicture = ("True" in configs["finalPicture"])
 
 	startTime = datetime.now()
 	last_notification = datetime.now() - notificationFrequency
@@ -156,6 +162,11 @@ def main():
 	else:
 		print("Notifications are disabled")
 
+	if (finalPicture and notificationsAllowed):
+		print("Final picture is  enabled")
+	else:
+		print("Final picture is  disabled")
+
 	if (streaming):
 		print("Streaming is      enabled")
 		streamer = MJPEGStreamer(camera, port=8080, path="/video", jpeg_quality=50)
@@ -173,6 +184,10 @@ def main():
 		current_time = datetime.now()
 		if (runtimeMaximum < (current_time - startTime)):
 			log("total runtime expired, exiting.")
+			if (finalPicture and notificationsAllowed):
+				ret, image = camera.read()
+				ret, encoded = cv2.imencode('.jpg', image)
+				send_notification(encoded.tobytes())
 			break
 		if (wakeupTime > (current_time - startTime)):
 			log("wake up delay...")
