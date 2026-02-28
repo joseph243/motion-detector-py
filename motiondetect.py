@@ -75,6 +75,9 @@ def capture_and_save_image(inImage):
 	cv2.imwrite(saveLoc, inImage)
 	return saveLoc
 
+def send_telegram():
+
+
 def send_notification(inImageData):
 	email_secrets = read_email_secrets(secrets_local_file)
 	datestr = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
