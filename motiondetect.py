@@ -1,4 +1,4 @@
-import cv2, time, numpy, smtplib, os
+import cv2, time, numpy, smtplib, os, requests
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
@@ -25,8 +25,8 @@ def find_active_camera():
 		time.sleep(1)
 	assert success, "camera must be found to proceed"
 
-def read_email_secrets(inPath):
-	print("reading email secrets from " + inPath)
+def read_secrets(inPath):
+	print("reading secrets from " + inPath)
 	inPath = os.path.expanduser(inPath)
 	output = {}
 	with (open(inPath)) as file:
@@ -39,6 +39,8 @@ def read_email_secrets(inPath):
 	assert "server" in output, "secrets file at " + secrets_local_file + " must contain server address."
 	assert "sendto" in output, "secrets file at " + secrets_local_file + " must contain sendto email."
 	assert "port" in output, "secrets file at " + secrets_local_file + " must contain port number."
+	assert "telegramtoken" in output, "secrets file at " + secrets_local_file + " must contain telegramtoken."
+	assert "telegramchatid" in output, "secrets file at " + secrets_local_file + " must contain telegramchatid."
 	return output
 
 def read_config_file(inPath):
@@ -76,10 +78,10 @@ def capture_and_save_image(inImage):
 	return saveLoc
 
 def send_telegram():
-
+	a = 1
 
 def send_notification(inImageData):
-	email_secrets = read_email_secrets(secrets_local_file)
+	email_secrets = read_secrets(secrets_local_file)
 	datestr = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 	username = email_secrets["username"]
 	token = email_secrets["token"]
