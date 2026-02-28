@@ -53,6 +53,7 @@ def read_config_file(inPath):
     "shutDownAfterMinutes",
     "notificationFrequencyMinutes",
     "notificationsAllowed",
+    "notificationMethod",
     "cameraName",
     "savePictures",
     "logLevel",
