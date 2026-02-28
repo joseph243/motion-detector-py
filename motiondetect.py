@@ -53,7 +53,8 @@ def read_config_file(inPath):
     "shutDownAfterMinutes",
     "notificationFrequencyMinutes",
     "notificationsAllowed",
-    "notificationMethod",
+    "notifyEmail",
+    "notifyTelegram",
     "cameraName",
     "savePictures",
     "logLevel",
@@ -78,17 +79,34 @@ def capture_and_save_image(inImage):
 	cv2.imwrite(saveLoc, inImage)
 	return saveLoc
 
-def send_telegram():
-	a = 1
-
-def send_notification(inImageData):
-	email_secrets = read_secrets(secrets_local_file)
+def send_telegram(inImageData):
+	secrets = read_secrets(secrets_local_file)
+	chatId = secrets["telegramchatid"]
+	token = secrets["telegramtoken"]
+	url = f"https://api.telegram.org/bot{token}/sendPhoto"
 	datestr = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-	username = email_secrets["username"]
-	token = email_secrets["token"]
-	server = email_secrets["server"]
-	notifyAddress = email_secrets["sendto"]
-	port = int(email_secrets["port"])
+	caption = "Motion Detected at " + datestr
+	response = requests.post(
+		url,
+		data={
+			"chat_id": chatId,
+			"caption": caption
+		},
+		files={
+			"photo": ("image.jpg", inImageData, "image/jpeg")
+		}
+	)
+	if not response.ok:
+		log(response.text)
+
+def send_email(inImageData):
+	secrets = read_secrets(secrets_local_file)
+	datestr = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+	username = secrets["username"]
+	token = secrets["token"]
+	server = secrets["server"]
+	notifyAddress = secrets["sendto"]
+	port = int(secrets["port"])
 	message = MIMEMultipart()
 	message['From'] = username
 	message['To'] = notifyAddress
@@ -147,7 +165,8 @@ def main():
 	savePictures = ("True" in configs["savePictures"])
 	streaming = ("True" in configs["streaming"])
 	finalPicture = ("True" in configs["finalPicture"])
-
+	notifyEmailConfig = ("True" in configs["notifyEmail"])
+	notifyTelegramConfig = ("True" in configs["notifyTelegram"])
 	startTime = datetime.now()
 	last_notification = datetime.now() - notificationFrequency
 	last_throttled = datetime.now()
@@ -165,6 +184,10 @@ def main():
 
 	if (notificationsAllowed):
 		print("Notifications are enabled   with frequency of " + str(notificationFrequency))
+		if (notifyEmailConfig):
+			print("                                   email ON")
+		if (notifyTelegramConfig):
+			print("                                   telegram ON")
 	else:
 		print("Notifications are disabled")
 
@@ -193,7 +216,10 @@ def main():
 			if (finalPicture and notificationsAllowed):
 				ret, image = camera.read()
 				ret, encoded = cv2.imencode('.jpg', image)
-				send_notification(encoded.tobytes())
+				if (notifyEmailConfig):
+					send_email(encoded.tobytes())
+				if (notifyTelegramConfig):
+					send_telegram(encoded.tobytes())
 			break
 		if (wakeupTime > (current_time - startTime)):
 			log("wake up delay...")
@@ -214,15 +240,20 @@ def main():
 			log("MOTION DETECTED")
 			last_throttled = current_time
 			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
-			encodeImgSuccess, buffer = cv2.imencode('.jpg', image2)
+			encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
 			if (encodeImgSuccess):
 				if (notificationsAllowed):
 					if (notificationCooldown):
 						log("notifications are allowed, but on cooldown.")
 					else:
-						log("notification sent.")
+						log("notification sending...")
 						last_notification = current_time
-						send_notification(buffer.tobytes())
+						if (notifyEmailConfig):
+							log("via email")
+							send_email(encoded.tobytes())
+						if (notifyTelegramConfig):
+							log("via telegram")
+							send_telegram(encoded.tobytes())
 				else:
 					log("notifications are disabled.")
 				if (savePictures):
