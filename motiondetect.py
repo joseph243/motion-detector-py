@@ -151,52 +151,52 @@ def encodeImageWithText(inImage, inText):
 
 def main():
 	configs = read_config_file(config_local_file)
-	global cameraName
+	global configCameraName
 	global logLevel
 	logLevel = int(configs["logLevel"])
-	cameraName = configs["cameraName"]
-	notificationsAllowed = ("True" in configs["notificationsAllowed"])
-	notificationFrequency = timedelta(minutes=int(configs["notificationFrequencyMinutes"]))
-	wakeupTime = timedelta(minutes=int(configs["wakeUpAfterMinutes"]))
-	intervalTime = timedelta(seconds=int(configs["intervalSecondsBetweenImages"]))
-	throttleTime = timedelta(seconds=int(configs["throttleSecondsAfterMotion"]))
-	runtimeMaximum = timedelta(minutes=int(configs["shutDownAfterMinutes"]))
-	sensitivity = int(configs["sensitivityRating"])
-	savePictures = ("True" in configs["savePictures"])
-	streaming = ("True" in configs["streaming"])
-	finalPicture = ("True" in configs["finalPicture"])
-	notifyEmailConfig = ("True" in configs["notifyEmail"])
-	notifyTelegramConfig = ("True" in configs["notifyTelegram"])
+	configCameraName = configs["cameraName"]
+	configNotificationsAllowed = ("True" in configs["notificationsAllowed"])
+	configNotificationFrequency = timedelta(minutes=int(configs["notificationFrequencyMinutes"]))
+	configWakeupTime = timedelta(minutes=int(configs["wakeUpAfterMinutes"]))
+	configIntervalSeconds = int(configs["intervalSecondsBetweenImages"])
+	configThrottleTime = timedelta(seconds=int(configs["throttleSecondsAfterMotion"]))
+	configRuntimeMaximum = timedelta(minutes=int(configs["shutDownAfterMinutes"]))
+	configSensitivity = int(configs["sensitivityRating"])
+	configSavePictures = ("True" in configs["savePictures"])
+	configStreaming = ("True" in configs["streaming"])
+	configFinalPicture = ("True" in configs["finalPicture"])
+	configEmailNotify = ("True" in configs["notifyEmail"])
+	configTelegramNotify = ("True" in configs["notifyTelegram"])
 	startTime = datetime.now()
-	last_notification = datetime.now() - notificationFrequency
+	last_notification = datetime.now() - configNotificationFrequency
 	last_throttled = datetime.now()
 
 	print("")
 	print("monitoring started at " + startTime.strftime("%Y-%m-%d %H:%M:%S"))
 	print("-----------------------------------------")
-	print("throttle time is      " + str(throttleTime))
-	print("runtime is            " + str(runtimeMaximum))
-	print("startup wait is       " + str(wakeupTime))
-	print("compare interval is   " + str(intervalTime))
+	print("throttle time is      " + str(configThrottleTime))
+	print("runtime is            " + str(configRuntimeMaximum))
+	print("startup wait is       " + str(configWakeupTime))
+	print("compare interval is   " + str(timedelta(seconds=configIntervalSeconds)))
 	print("logLevel is           " + str(logLevel))
 	print("-----------------------------------------")
 	print("")
 
-	if (notificationsAllowed):
-		print("Notifications are enabled   with frequency of " + str(notificationFrequency))
-		if (notifyEmailConfig):
+	if (configNotificationsAllowed):
+		print("Notifications are enabled   with frequency of " + str(configNotificationFrequency))
+		if (configEmailNotify):
 			print("                                   email ON")
-		if (notifyTelegramConfig):
+		if (configTelegramNotify):
 			print("                                   telegram ON")
 	else:
 		print("Notifications are disabled")
 
-	if (finalPicture and notificationsAllowed):
+	if (configFinalPicture and configNotificationsAllowed):
 		print("Final picture is  enabled")
 	else:
 		print("Final picture is  disabled")
 
-	if (streaming):
+	if (configStreaming):
 		print("Streaming is      enabled")
 		streamer = MJPEGStreamer(camera, port=8080, path="/video", jpeg_quality=50)
 		streamer.start()
@@ -211,58 +211,61 @@ def main():
 	while(True):
 		camera.read()
 		current_time = datetime.now()
-		if (runtimeMaximum < (current_time - startTime)):
+		if (configRuntimeMaximum < (current_time - startTime)):
 			log("total runtime expired, exiting.")
-			if (finalPicture and notificationsAllowed):
-				ret, image = camera.read()
-				ret, encoded = cv2.imencode('.jpg', image)
-				if (notifyEmailConfig):
-					send_email(encoded.tobytes())
-				if (notifyTelegramConfig):
-					send_telegram(encoded.tobytes())
 			break
-		if (wakeupTime > (current_time - startTime)):
+		if (configWakeupTime > (current_time - startTime)):
 			log("wake up delay...")
 			time.sleep(60)
 			continue
-		if (throttleTime > (current_time - last_throttled)):
+		if (configThrottleTime > (current_time - last_throttled)):
 			log("throttled...")
 			time.sleep(1)
 			continue
-		notificationCooldown = notificationFrequency > (current_time - last_notification)
+		notificationCooldown = configNotificationFrequency > (current_time - last_notification)
 		if (logLevel > 0):
 			log("checking for motion...")
 		ret, image1 = camera.read()
-		time.sleep(int(configs["intervalSecondsBetweenImages"]))
+		time.sleep(configIntervalSeconds)
 		ret, image2 = camera.read()
-		motion = compareImages(image1, image2, sensitivity)
+		motion = compareImages(image1, image2, configSensitivity)
 		if (motion):
 			log("MOTION DETECTED")
 			last_throttled = current_time
 			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
 			encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
-			if (encodeImgSuccess):
-				if (notificationsAllowed):
-					if (notificationCooldown):
-						log("notifications are allowed, but on cooldown.")
-					else:
-						log("notification sending...")
-						last_notification = current_time
-						if (notifyEmailConfig):
-							log("via email")
-							send_email(encoded.tobytes())
-						if (notifyTelegramConfig):
-							log("via telegram")
-							send_telegram(encoded.tobytes())
-				else:
-					log("notifications are disabled.")
-				if (savePictures):
-					log("image saved.")
-					capture_and_save_image(image2)
-				else:
-					log("saved images are disabled.")
-			else:
+			if not encodeImgSuccess:
 				log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
+				continue
+			if configSavePictures:
+				log("image saved.")
+				capture_and_save_image(image2)
+			if not configSavePictures:
+				log("saved images are disabled.")
+			if (configNotificationsAllowed and notificationCooldown):
+				log("notifications are allowed, but on cooldown.")
+			if not configNotificationsAllowed:
+				log("notifications are disabled.")
+			if (configNotificationsAllowed and not notificationCooldown):
+				log("notification sending...")
+				last_notification = current_time
+				if (configEmailNotify):
+					log("...via email")
+					send_email(encoded.tobytes())
+				if (configTelegramNotify):
+					log("...via telegram")
+					send_telegram(encoded.tobytes())
+	
+	log("monitoring stopped.  checking for final photo then shutting down.")
+	if (configFinalPicture and configNotificationsAllowed and configEmailNotify):
+		ret, image = camera.read()
+		ret, encoded = cv2.imencode('.jpg', image)
+		send_email(encoded.tobytes())
+	if (configFinalPicture and configNotificationsAllowed and configTelegramNotify):
+		ret, image = camera.read()
+		ret, encoded = cv2.imencode('.jpg', image)
+		send_telegram(encoded.tobytes())
+	
 	log("closing camera and end motion detect")
 	camera.release()
 
