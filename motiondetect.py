@@ -213,13 +213,6 @@ def main():
 		current_time = datetime.now()
 		if (runtimeMaximum < (current_time - startTime)):
 			log("total runtime expired, exiting.")
-			if (finalPicture and notificationsAllowed):
-				ret, image = camera.read()
-				ret, encoded = cv2.imencode('.jpg', image)
-				if (notifyEmailConfig):
-					send_email(encoded.tobytes())
-				if (notifyTelegramConfig):
-					send_telegram(encoded.tobytes())
 			break
 		if (wakeupTime > (current_time - startTime)):
 			log("wake up delay...")
@@ -263,6 +256,16 @@ def main():
 					log("saved images are disabled.")
 			else:
 				log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
+	
+	if (finalPicture and notificationsAllowed and notifyEmailConfig):
+		ret, image = camera.read()
+		ret, encoded = cv2.imencode('.jpg', image)
+		send_email(encoded.tobytes())
+	if (finalPicture and notificationsAllowed and notifyTelegramConfig):
+		ret, image = camera.read()
+		ret, encoded = cv2.imencode('.jpg', image)
+		send_telegram(encoded.tobytes())
+	
 	log("closing camera and end motion detect")
 	camera.release()
 
