@@ -1,4 +1,4 @@
-import cv2, time, numpy, smtplib, os, requests
+import cv2, time, numpy, smtplib, os, requests, threading
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
@@ -79,13 +79,13 @@ def capture_and_save_image(inImage):
 	cv2.imwrite(saveLoc, inImage)
 	return saveLoc
 
-def send_telegram(inImageData):
+def send_telegram(inMessage, inImageData):
 	secrets = read_secrets(secrets_local_file)
 	chatId = secrets["telegramchatid"]
 	token = secrets["telegramtoken"]
 	url = f"https://api.telegram.org/bot{token}/sendPhoto"
 	datestr = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-	caption = "Motion Detected at " + datestr
+	caption = inMessage + " at " + datestr
 	response = requests.post(
 		url,
 		data={
@@ -149,10 +149,34 @@ def encodeImageWithText(inImage, inText):
 	cv2.putText(inImage, str(inText), position, cv2.FONT_HERSHEY_DUPLEX, 1, (0,0,0), 2, cv2.LINE_AA)
 	return inImage
 
+def telegramMessageWatcher(token, authorizedUser):
+	global telegram_command
+	telegram_command = None
+	last_update_id = 0
+	while True:
+		log(">>telegram polling")
+		r = requests.get(
+        	f"https://api.telegram.org/bot{token}/getUpdates",
+        	params={
+            	"timeout": 30,
+				"offset": last_update_id
+        	},
+			timeout=35
+    	)
+		data = r.json()
+		for update in data["result"]:
+			last_update_id = update["update_id"] + 1
+			message = update.get("message", {})
+			chat_id = message.get("chat", {}).get("id")
+			text = message.get("text")
+			if str(authorizedUser) == str(chat_id):
+				telegram_command = text.lower()
+
 def main():
 	configs = read_config_file(config_local_file)
 	global configCameraName
 	global logLevel
+	global telegram_command
 	logLevel = int(configs["logLevel"])
 	configCameraName = configs["cameraName"]
 	configNotificationsAllowed = ("True" in configs["notificationsAllowed"])
@@ -205,6 +229,14 @@ def main():
 
 	print("")
 
+	print("starting Telegram Watcher thread.")
+	t = threading.Thread(
+		target=telegramMessageWatcher,
+		daemon=True,
+		args=(read_secrets(secrets_local_file)["telegramtoken"],read_secrets(secrets_local_file)["telegramchatid"])
+	)
+	t.start()
+
 	print("initializing " + cameraName)
 	cameraprimer()
 
@@ -229,7 +261,7 @@ def main():
 		time.sleep(configIntervalSeconds)
 		ret, image2 = camera.read()
 		motion = compareImages(image1, image2, configSensitivity)
-		if (motion):
+		if motion:
 			log("MOTION DETECTED")
 			last_throttled = current_time
 			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
@@ -254,8 +286,17 @@ def main():
 					send_email(encoded.tobytes())
 				if (configTelegramNotify):
 					log("...via telegram")
-					send_telegram(encoded.tobytes())
-	
+					send_telegram("Motion Detected", encoded.tobytes())
+		if telegram_command == "snapshot":
+			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
+			encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
+			if not encodeImgSuccess:
+				log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
+				continue
+			log("sending snapshot as requested via telegram.")
+			send_telegram("Snapshot Requested", encoded.tobytes())
+			telegram_command = None
+
 	log("monitoring stopped.  checking for final photo then shutting down.")
 	if (configFinalPicture and configNotificationsAllowed and configEmailNotify):
 		ret, image = camera.read()
@@ -264,7 +305,7 @@ def main():
 	if (configFinalPicture and configNotificationsAllowed and configTelegramNotify):
 		ret, image = camera.read()
 		ret, encoded = cv2.imencode('.jpg', image)
-		send_telegram(encoded.tobytes())
+		send_telegram("Final Photo", encoded.tobytes())
 	
 	log("closing camera and end motion detect")
 	camera.release()
