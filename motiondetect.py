@@ -237,26 +237,26 @@ def main():
 			if not encodeImgSuccess:
 				log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
 				continue
-			if (configNotificationsAllowed):
-				if (notificationCooldown):
-					log("notifications are allowed, but on cooldown.")
-				else:
-					log("notification sending...")
-					last_notification = current_time
-					if (configEmailNotify):
-						log("via email")
-						send_email(encoded.tobytes())
-					if (configTelegramNotify):
-						log("via telegram")
-						send_telegram(encoded.tobytes())
-			else:
-				log("notifications are disabled.")
-			if (configSavePictures):
+			if configSavePictures:
 				log("image saved.")
 				capture_and_save_image(image2)
-			else:
+			if not configSavePictures:
 				log("saved images are disabled.")
+			if (configNotificationsAllowed and notificationCooldown):
+				log("notifications are allowed, but on cooldown.")
+			if not configNotificationsAllowed:
+				log("notifications are disabled.")
+			if (configNotificationsAllowed and not notificationCooldown):
+				log("notification sending...")
+				last_notification = current_time
+				if (configEmailNotify):
+					log("...via email")
+					send_email(encoded.tobytes())
+				if (configTelegramNotify):
+					log("...via telegram")
+					send_telegram(encoded.tobytes())
 	
+	log("monitoring stopped.  checking for final photo then shutting down.")
 	if (configFinalPicture and configNotificationsAllowed and configEmailNotify):
 		ret, image = camera.read()
 		ret, encoded = cv2.imencode('.jpg', image)
