@@ -79,6 +79,21 @@ def capture_and_save_image(inImage):
 	cv2.imwrite(saveLoc, inImage)
 	return saveLoc
 
+def send_telegram_message(inMessage):
+	secrets = read_secrets(secrets_local_file)
+	chatId = secrets["telegramchatid"]
+	token = secrets["telegramtoken"]
+	url = f"https://api.telegram.org/bot{token}/sendMessage"
+	response = requests.post(
+		url,
+		data={
+			"chat_id": chatId,
+			"text": inMessage
+		},
+	)
+	if not response.ok:
+		log(response.text)
+
 def send_telegram(inMessage, inImageData):
 	secrets = read_secrets(secrets_local_file)
 	chatId = secrets["telegramchatid"]
@@ -295,6 +310,11 @@ def main():
 				continue
 			log("sending snapshot as requested via telegram.")
 			send_telegram("Snapshot Requested", encoded.tobytes())
+			telegram_command = None
+		if telegram_command == "status":
+			message = "Hello!  Camera monitoring is active since " + startTime + ". Last motion detected was at " + last_throttled + "."
+			log("sending telegram message: " + message)
+			send_telegram(message)
 			telegram_command = None
 
 	log("monitoring stopped.  checking for final photo then shutting down.")
