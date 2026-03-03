@@ -316,10 +316,15 @@ def main():
 			send_telegram("Snapshot Requested", encoded.tobytes())
 			telegram_command = None
 		if telegram_command == "status":
-			message = "Hello!  Camera monitoring is active since " + str(startTime) + ". Last motion detected was at " + str(last_throttled) + "."
+			message = "Hello!  Camera monitoring is active since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + "."
 			log("sending telegram message: " + message)
-			send_telegram(message)
+			send_telegram_message(message)
 			telegram_command = None
+		if telegram_command == "stop":
+			message = "Stopping per telegram request."
+			log(message)
+			send_telegram_message(message)
+			break;
 
 	log("monitoring stopped.  checking for final photo then shutting down.")
 	if (configFinalPicture and configNotificationsAllowed and configEmailNotify):
