@@ -188,7 +188,7 @@ def telegramMessageWatcher(token, authorizedUser):
 				if str(authorizedUser) == str(chat_id):
 					telegram_command = text.lower()
 		except Exception as e:
-			log(">>telegram polling error", e)
+			log(">>telegram polling error" + str(e))
 			time.sleep(5)
 
 def main():
