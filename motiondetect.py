@@ -169,23 +169,27 @@ def telegramMessageWatcher(token, authorizedUser):
 	telegram_command = None
 	last_update_id = 0
 	while True:
-		log(">>telegram polling")
-		r = requests.get(
-        	f"https://api.telegram.org/bot{token}/getUpdates",
-        	params={
-            	"timeout": 30,
-				"offset": last_update_id
-        	},
-			timeout=35
-    	)
-		data = r.json()
-		for update in data["result"]:
-			last_update_id = update["update_id"] + 1
-			message = update.get("message", {})
-			chat_id = message.get("chat", {}).get("id")
-			text = message.get("text")
-			if str(authorizedUser) == str(chat_id):
-				telegram_command = text.lower()
+		try:
+			log(">>telegram polling")
+			r = requests.get(
+        		f"https://api.telegram.org/bot{token}/getUpdates",
+        		params={
+            		"timeout": 30,
+					"offset": last_update_id
+        		},
+				timeout=35
+    		)
+			data = r.json()
+			for update in data["result"]:
+				last_update_id = update["update_id"] + 1
+				message = update.get("message", {})
+				chat_id = message.get("chat", {}).get("id")
+				text = message.get("text")
+				if str(authorizedUser) == str(chat_id):
+					telegram_command = text.lower()
+		except Exception as e:
+			log(">>telegram polling error", e)
+			time.sleep(5)
 
 def main():
 	configs = read_config_file(config_local_file)
