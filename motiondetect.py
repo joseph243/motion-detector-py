@@ -316,7 +316,7 @@ def main():
 			send_telegram("Snapshot Requested", encoded.tobytes())
 			telegram_command = None
 		if telegram_command == "status":
-			message = "Hello!  Camera monitoring is active since " + startTime + ". Last motion detected was at " + last_throttled + "."
+			message = "Hello!  Camera monitoring is active since " + str(startTime) + ". Last motion detected was at " + str(last_throttled) + "."
 			log("sending telegram message: " + message)
 			send_telegram(message)
 			telegram_command = None
