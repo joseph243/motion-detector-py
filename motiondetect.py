@@ -1,29 +1,28 @@
-import cv2, time, numpy, smtplib, os, requests
+import cv2, time, numpy, smtplib, os, requests, socket
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.mime.text import MIMEText
 from mjpegStreamer import MJPEGStreamer
+from multiprocessing.managers import BaseManager
 
 camera = cv2.VideoCapture(0)
 cameraName = "DefaultCamera000"
 
-#email api secrets:
+#api secrets:
 secrets_local_file = "~/.ssh/email.key"
+telegram_secrets_local_file = "~/.ssh/telegram.key"
 config_local_file = "motion.config"
 
-def find_active_camera():
-	maxRange = 20
-	success = False
-	for i in range(-2, maxRange):
-		print("trying camera " + str(i))
-		camera = cv2.VideoCapture(i)
-		if (camera.isOpened()):
-			print("camera found at /dev/video" + str(i))
-			success = True
-			break
-		time.sleep(1)
-	assert success, "camera must be found to proceed"
+def get_local_ip():
+	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+	try:
+		s.connect(("8.8.8.8", 80))
+		return "127.0.0.1"
+		#enhancement for multi-pc:
+		#return s.getsockname()[0]
+	finally:
+		s.close()
 
 def read_secrets(inPath):
 	print("reading secrets from " + inPath)
@@ -34,13 +33,6 @@ def read_secrets(inPath):
 			if ":" in line:
 				key, value = line.split(':', 1)
 				output[key.strip()] = value.strip()
-	assert "username" in output, "secrets file at " + secrets_local_file + " must contain username."
-	assert "token" in output, "secrets file at " + secrets_local_file + " must contain token."
-	assert "server" in output, "secrets file at " + secrets_local_file + " must contain server address."
-	assert "sendto" in output, "secrets file at " + secrets_local_file + " must contain sendto email."
-	assert "port" in output, "secrets file at " + secrets_local_file + " must contain port number."
-	assert "telegramtoken" in output, "secrets file at " + secrets_local_file + " must contain telegramtoken."
-	assert "telegramchatid" in output, "secrets file at " + secrets_local_file + " must contain telegramchatid."
 	return output
 
 def read_config_file(inPath):
@@ -170,6 +162,19 @@ def main():
 	startTime = datetime.now()
 	last_notification = datetime.now() - notificationFrequency
 	last_throttled = datetime.now()
+
+	## connection to homebot ##
+	AUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"]
+	PORT = 55555
+	HOST = get_local_ip()
+	class HomebotManager(BaseManager):
+		pass
+	HomebotManager.register('get_feedback_queue')
+	manager = HomebotManager(address=(HOST, PORT), authkey=AUTH.encode('utf-8'))
+	manager.connect()
+	q = manager.get_feedback_queue()
+	q.put({"name": cameraName, "type": "camera", "time": startTime, "message": "this is a custom message."})
+	## end homebot ##
 
 	print("")
 	print("monitoring started at " + startTime.strftime("%Y-%m-%d %H:%M:%S"))
