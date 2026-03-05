@@ -117,7 +117,7 @@ def send_email(inImageData):
 	message = MIMEMultipart()
 	message['From'] = username
 	message['To'] = notifyAddress
-	message['Subject'] = cameraName
+	message['Subject'] = configCameraName
 	message.attach(MIMEText("Motion Detected at " + datestr + ": "))
 	message.attach(MIMEImage(inImageData))
 	connection = smtplib.SMTP(server, port)
@@ -261,7 +261,7 @@ def main():
 	)
 	t.start()
 
-	print("initializing " + cameraName)
+	print("initializing " + configCameraName)
 	cameraprimer()
 
 	while(True):
