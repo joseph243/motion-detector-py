@@ -7,7 +7,7 @@ from mjpegStreamer import MJPEGStreamer
 from multiprocessing.managers import BaseManager
 
 camera = cv2.VideoCapture(0)
-cameraName = "DefaultCamera000"
+configCameraName = "DefaultCamera000"
 
 #api secrets:
 secrets_local_file = "~/.ssh/email.key"
@@ -216,7 +216,7 @@ def main():
 	manager = HomebotManager(address=(HOST, PORT), authkey=AUTH.encode('utf-8'))
 	manager.connect()
 	q = manager.get_feedback_queue()
-	q.put({"name": cameraName, "type": "camera", "time": startTime, "message": "this is a custom message."})
+	q.put({"name": configCameraName, "type": "camera", "time": startTime, "message": "this is a custom message."})
 	## end homebot ##
 
 	print("")
