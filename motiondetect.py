@@ -328,7 +328,6 @@ def main():
 		if telegram_command == "stop":
 			message = "Stopping per telegram request."
 			log(message)
-			send_telegram_message(message)
 			break;
 
 	log("monitoring stopped.  checking for final photo then shutting down.")
@@ -340,8 +339,10 @@ def main():
 		ret, image = camera.read()
 		ret, encoded = cv2.imencode('.jpg', image)
 		send_telegram("Final Photo", encoded.tobytes())
-	
-	log("closing camera and end motion detect")
+
+	exitMessage = "shutting down " + configCameraName
+	log(exitMessage)
+	send_telegram_message(exitMessage)
 	camera.release()
 
 if __name__ == "__main__":
