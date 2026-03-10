@@ -205,6 +205,7 @@ def main():
 	startTime = datetime.now()
 	last_notification = datetime.now() - configNotificationFrequency
 	last_throttled = datetime.now()
+	heartbeatSeconds = 60
 
 	## connection to homebot ##
 	AUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"]
@@ -216,7 +217,7 @@ def main():
 	manager = HomebotManager(address=(HOST, PORT), authkey=AUTH.encode('utf-8'))
 	manager.connect()
 	q = manager.get_feedback_queue()
-	q.put({"name": configCameraName, "type": "camera", "time": startTime, "message": "this is a custom message."})
+	#q.put({"name": configCameraName, "type": "camera", "time": startTime, "message": "this is a custom message."})
 	## end homebot ##
 
 	print("")
@@ -263,10 +264,15 @@ def main():
 
 	print("initializing " + configCameraName)
 	cameraprimer()
+	nextHeartbeat = time.time() - 1
 
 	while(True):
 		camera.read()
 		current_time = datetime.now()
+		if (time.time() >= nextHeartbeat):
+			log("sending heartbeat")
+			q.put({"name": configCameraName, "type": "camera", "time": startTime, "message": "heartbeat"})
+			nextHeartbeat = time.time() + heartbeatSeconds
 		if (configRuntimeMaximum < (current_time - startTime)):
 			log("total runtime expired, exiting.")
 			break
