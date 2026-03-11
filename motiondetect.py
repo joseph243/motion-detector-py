@@ -134,6 +134,7 @@ def main():
 	nextHeartbeat = time.time() - 1
 
 	while(True):
+		time.sleep(5)
 		current_time = datetime.now()
 		if (time.time() >= nextHeartbeat):
 			log("sending heartbeat")
