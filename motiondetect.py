@@ -1,13 +1,8 @@
-import cv2, time, numpy, smtplib, os, requests, socket, threading
+import time, os, requests, socket, threading
 from datetime import datetime, timedelta
-from email.mime.multipart import MIMEMultipart
-from email.mime.image import MIMEImage
-from email.mime.text import MIMEText
-from mjpegStreamer import MJPEGStreamer
 from multiprocessing.managers import BaseManager
 
-camera = cv2.VideoCapture(0)
-configCameraName = "DefaultCamera000"
+configDeviceName = "DefaultCamera000"
 
 #api secrets:
 secrets_local_file = "~/.ssh/email.key"
@@ -18,9 +13,7 @@ def get_local_ip():
 	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	try:
 		s.connect(("8.8.8.8", 80))
-		return "127.0.0.1"
-		#enhancement for multi-pc:
-		#return s.getsockname()[0]
+		return s.getsockname()[0]
 	finally:
 		s.close()
 
@@ -38,20 +31,8 @@ def read_secrets(inPath):
 def read_config_file(inPath):
 	print("reading configuration from " + inPath)
 	expectedFields = [
-    "wakeUpAfterMinutes",
-    "intervalSecondsBetweenImages",
-    "throttleSecondsAfterMotion",
-    "sensitivityRating",
-    "shutDownAfterMinutes",
-    "notificationFrequencyMinutes",
-    "notificationsAllowed",
-    "notifyEmail",
-    "notifyTelegram",
-    "cameraName",
-    "savePictures",
-    "logLevel",
-    "streaming",
-    "finalPicture"
+    "name",
+    "logLevel"
 	]
 	inPath = os.path.expanduser(inPath)
 	configs = {}
@@ -63,13 +44,6 @@ def read_config_file(inPath):
 	for field in expectedFields:
 		assert field in configs, f"config file at {inPath} must contain {field}."
 	return configs
-
-def capture_and_save_image(inImage):
-	timestr = datetime.now()
-	filename = timestr.strftime("%Y-%m-%d-%H:%M:%S")
-	saveLoc = filename + ".jpg"
-	cv2.imwrite(saveLoc, inImage)
-	return saveLoc
 
 def send_telegram_message(inMessage):
 	secrets = read_secrets(secrets_local_file)
@@ -86,75 +60,9 @@ def send_telegram_message(inMessage):
 	if not response.ok:
 		log(response.text)
 
-def send_telegram(inMessage, inImageData):
-	secrets = read_secrets(secrets_local_file)
-	chatId = secrets["telegramchatid"]
-	token = secrets["telegramtoken"]
-	url = f"https://api.telegram.org/bot{token}/sendPhoto"
-	datestr = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-	caption = inMessage + " at " + datestr
-	response = requests.post(
-		url,
-		data={
-			"chat_id": chatId,
-			"caption": caption
-		},
-		files={
-			"photo": ("image.jpg", inImageData, "image/jpeg")
-		}
-	)
-	if not response.ok:
-		log(response.text)
-
-def send_email(inImageData):
-	secrets = read_secrets(secrets_local_file)
-	datestr = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-	username = secrets["username"]
-	token = secrets["token"]
-	server = secrets["server"]
-	notifyAddress = secrets["sendto"]
-	port = int(secrets["port"])
-	message = MIMEMultipart()
-	message['From'] = username
-	message['To'] = notifyAddress
-	message['Subject'] = configCameraName
-	message.attach(MIMEText("Motion Detected at " + datestr + ": "))
-	message.attach(MIMEImage(inImageData))
-	connection = smtplib.SMTP(server, port)
-	connection.starttls()
-	connection.login(username, token)
-	connection.sendmail(username,notifyAddress, message.as_string())
-	connection.quit
-
-def compareImages(inImage1, inImage2, sensitivity):
-	try:
-		score = numpy.sum((inImage1.astype("float") - inImage2.astype("float")) ** 2)
-		score /= float(inImage1.shape[0] * inImage1.shape[1] * inImage1.shape[2])
-		return score > sensitivity
-	except (AttributeError):
-		log("IMAGE COMPARE ERROR, CAMERA NOT DETECTED?.")
-		return False
-
-def cameraprimer():
-	camera.read()
-	time.sleep(1)
-	camera.read()
-	camera.read()
-	time.sleep(5)
-	camera.read()
-	camera.read()
-	camera.read()
-
 def log(inLogEntry):
 	dateString = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 	print(dateString + " cameraLog: " + inLogEntry)
-
-def encodeImageWithText(inImage, inText):
-	height, *_ = inImage.shape
-	buffer = 10
-	position = (buffer, height-buffer)
-	cv2.putText(inImage, str(inText), position, cv2.FONT_HERSHEY_DUPLEX, 1, (0,0,0), 2, cv2.LINE_AA)
-	return inImage
 
 def telegramMessageWatcher(token, authorizedUser):
 	global telegram_command
@@ -185,149 +93,55 @@ def telegramMessageWatcher(token, authorizedUser):
 
 def main():
 	configs = read_config_file(config_local_file)
-	global configCameraName
+	global configDeviceName
 	global logLevel
 	global telegram_command
+	telegram_command = None
 	logLevel = int(configs["logLevel"])
-	configCameraName = configs["cameraName"]
-	configNotificationsAllowed = ("True" in configs["notificationsAllowed"])
-	configNotificationFrequency = timedelta(minutes=int(configs["notificationFrequencyMinutes"]))
-	configWakeupTime = timedelta(minutes=int(configs["wakeUpAfterMinutes"]))
-	configIntervalSeconds = int(configs["intervalSecondsBetweenImages"])
-	configThrottleTime = timedelta(seconds=int(configs["throttleSecondsAfterMotion"]))
-	configRuntimeMaximum = timedelta(minutes=int(configs["shutDownAfterMinutes"]))
-	configSensitivity = int(configs["sensitivityRating"])
-	configSavePictures = ("True" in configs["savePictures"])
-	configStreaming = ("True" in configs["streaming"])
-	configFinalPicture = ("True" in configs["finalPicture"])
-	configEmailNotify = ("True" in configs["notifyEmail"])
-	configTelegramNotify = ("True" in configs["notifyTelegram"])
+	configDeviceName = configs["name"]
 	startTime = datetime.now()
-	last_notification = datetime.now() - configNotificationFrequency
-	last_throttled = datetime.now()
 	heartbeatSeconds = 60
 
 	## connection to homebot ##
 	AUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"]
 	PORT = 55555
-	HOST = get_local_ip()
+	HOST = "10.0.0.235"
+	print("debugs:  host=" + HOST + ", AUTH= " + AUTH)
 	class HomebotManager(BaseManager):
 		pass
 	HomebotManager.register('get_feedback_queue')
 	manager = HomebotManager(address=(HOST, PORT), authkey=AUTH.encode('utf-8'))
 	manager.connect()
 	q = manager.get_feedback_queue()
-	#q.put({"name": configCameraName, "type": "camera", "time": startTime, "message": "this is a custom message."})
-	## end homebot ##
+	## end homebot setup ##
 
 	print("")
-	print("monitoring started at " + startTime.strftime("%Y-%m-%d %H:%M:%S"))
 	print("-----------------------------------------")
-	print("throttle time is      " + str(configThrottleTime))
-	print("runtime is            " + str(configRuntimeMaximum))
-	print("startup wait is       " + str(configWakeupTime))
-	print("compare interval is   " + str(timedelta(seconds=configIntervalSeconds)))
+	print("device started at     " + startTime.strftime("%Y-%m-%d %H:%M:%S"))
 	print("logLevel is           " + str(logLevel))
 	print("-----------------------------------------")
 	print("")
 
-	if (configNotificationsAllowed):
-		print("Notifications are enabled   with frequency of " + str(configNotificationFrequency))
-		if (configEmailNotify):
-			print("                                   email ON")
-		if (configTelegramNotify):
-			print("                                   telegram ON")
-	else:
-		print("Notifications are disabled")
+	##print("starting Telegram Watcher thread.")
+	##t = threading.Thread(
+	##	target=telegramMessageWatcher,
+	##	daemon=True,
+	##	args=(read_secrets(secrets_local_file)["telegramtoken"],read_secrets(secrets_local_file)["telegramchatid"])
+	##)
+	## DISABLE TELEGRAM FOR NOW t.start()
 
-	if (configFinalPicture and configNotificationsAllowed):
-		print("Final picture is  enabled")
-	else:
-		print("Final picture is  disabled")
-
-	if (configStreaming):
-		print("Streaming is      enabled")
-		streamer = MJPEGStreamer(camera, port=8080, path="/video", jpeg_quality=50)
-		streamer.start()
-	else:
-		print("Streaming is      disabled")
-
-	print("")
-
-	print("starting Telegram Watcher thread.")
-	t = threading.Thread(
-		target=telegramMessageWatcher,
-		daemon=True,
-		args=(read_secrets(secrets_local_file)["telegramtoken"],read_secrets(secrets_local_file)["telegramchatid"])
-	)
-	t.start()
-
-	print("initializing " + configCameraName)
-	cameraprimer()
+	print("initializing " + configDeviceName)
 	nextHeartbeat = time.time() - 1
 
 	while(True):
-		camera.read()
+		time.sleep(5)
 		current_time = datetime.now()
 		if (time.time() >= nextHeartbeat):
 			log("sending heartbeat")
-			q.put({"name": configCameraName, "type": "camera", "time": startTime, "message": "heartbeat"})
+			q.put({"name": configDeviceName, "type": "camera", "time": startTime, "message": "heartbeat"})
 			nextHeartbeat = time.time() + heartbeatSeconds
-		if (configRuntimeMaximum < (current_time - startTime)):
-			log("total runtime expired, exiting.")
-			break
-		if (configWakeupTime > (current_time - startTime)):
-			log("wake up delay...")
-			time.sleep(60)
-			continue
-		if (configThrottleTime > (current_time - last_throttled)):
-			log("throttled...")
-			time.sleep(1)
-			continue
-		notificationCooldown = configNotificationFrequency > (current_time - last_notification)
-		if (logLevel > 0):
-			log("checking for motion...")
-		ret, image1 = camera.read()
-		time.sleep(configIntervalSeconds)
-		ret, image2 = camera.read()
-		motion = compareImages(image1, image2, configSensitivity)
-		if motion:
-			log("MOTION DETECTED")
-			last_throttled = current_time
-			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
-			encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
-			if not encodeImgSuccess:
-				log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
-				continue
-			if configSavePictures:
-				log("image saved.")
-				capture_and_save_image(image2)
-			if not configSavePictures:
-				log("saved images are disabled.")
-			if (configNotificationsAllowed and notificationCooldown):
-				log("notifications are allowed, but on cooldown.")
-			if not configNotificationsAllowed:
-				log("notifications are disabled.")
-			if (configNotificationsAllowed and not notificationCooldown):
-				log("notification sending...")
-				last_notification = current_time
-				if (configEmailNotify):
-					log("...via email")
-					send_email(encoded.tobytes())
-				if (configTelegramNotify):
-					log("...via telegram")
-					send_telegram("Motion Detected", encoded.tobytes())
-		if telegram_command == "snapshot":
-			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
-			encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
-			if not encodeImgSuccess:
-				log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
-				continue
-			log("sending snapshot as requested via telegram.")
-			send_telegram("Snapshot Requested", encoded.tobytes())
-			telegram_command = None
 		if telegram_command == "status":
-			message = "Hello!  Camera monitoring is active since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + "."
+			message = "Hello!  Device is active since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + "."
 			log("sending telegram message: " + message)
 			send_telegram_message(message)
 			telegram_command = None
@@ -336,20 +150,9 @@ def main():
 			log(message)
 			break;
 
-	log("monitoring stopped.  checking for final photo then shutting down.")
-	if (configFinalPicture and configNotificationsAllowed and configEmailNotify):
-		ret, image = camera.read()
-		ret, encoded = cv2.imencode('.jpg', image)
-		send_email(encoded.tobytes())
-	if (configFinalPicture and configNotificationsAllowed and configTelegramNotify):
-		ret, image = camera.read()
-		ret, encoded = cv2.imencode('.jpg', image)
-		send_telegram("Final Photo", encoded.tobytes())
-
-	exitMessage = "shutting down " + configCameraName
+	exitMessage = "shutting down " + configDeviceName
 	log(exitMessage)
 	send_telegram_message(exitMessage)
-	camera.release()
 
 if __name__ == "__main__":
 	main()
