@@ -1,29 +1,28 @@
-import cv2, time, numpy, smtplib, os, requests, threading
+import cv2, time, numpy, smtplib, os, requests, socket, threading
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.mime.text import MIMEText
 from mjpegStreamer import MJPEGStreamer
+from multiprocessing.managers import BaseManager
 
 camera = cv2.VideoCapture(0)
-cameraName = "DefaultCamera000"
+configCameraName = "DefaultCamera000"
 
-#email api secrets:
+#api secrets:
 secrets_local_file = "~/.ssh/email.key"
+telegram_secrets_local_file = "~/.ssh/telegram.key"
 config_local_file = "motion.config"
 
-def find_active_camera():
-	maxRange = 20
-	success = False
-	for i in range(-2, maxRange):
-		print("trying camera " + str(i))
-		camera = cv2.VideoCapture(i)
-		if (camera.isOpened()):
-			print("camera found at /dev/video" + str(i))
-			success = True
-			break
-		time.sleep(1)
-	assert success, "camera must be found to proceed"
+def get_local_ip():
+	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+	try:
+		s.connect(("8.8.8.8", 80))
+		return "127.0.0.1"
+		#enhancement for multi-pc:
+		#return s.getsockname()[0]
+	finally:
+		s.close()
 
 def read_secrets(inPath):
 	print("reading secrets from " + inPath)
@@ -34,13 +33,6 @@ def read_secrets(inPath):
 			if ":" in line:
 				key, value = line.split(':', 1)
 				output[key.strip()] = value.strip()
-	assert "username" in output, "secrets file at " + secrets_local_file + " must contain username."
-	assert "token" in output, "secrets file at " + secrets_local_file + " must contain token."
-	assert "server" in output, "secrets file at " + secrets_local_file + " must contain server address."
-	assert "sendto" in output, "secrets file at " + secrets_local_file + " must contain sendto email."
-	assert "port" in output, "secrets file at " + secrets_local_file + " must contain port number."
-	assert "telegramtoken" in output, "secrets file at " + secrets_local_file + " must contain telegramtoken."
-	assert "telegramchatid" in output, "secrets file at " + secrets_local_file + " must contain telegramchatid."
 	return output
 
 def read_config_file(inPath):
@@ -125,7 +117,7 @@ def send_email(inImageData):
 	message = MIMEMultipart()
 	message['From'] = username
 	message['To'] = notifyAddress
-	message['Subject'] = cameraName
+	message['Subject'] = configCameraName
 	message.attach(MIMEText("Motion Detected at " + datestr + ": "))
 	message.attach(MIMEImage(inImageData))
 	connection = smtplib.SMTP(server, port)
@@ -213,6 +205,20 @@ def main():
 	startTime = datetime.now()
 	last_notification = datetime.now() - configNotificationFrequency
 	last_throttled = datetime.now()
+	heartbeatSeconds = 60
+
+	## connection to homebot ##
+	AUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"]
+	PORT = 55555
+	HOST = get_local_ip()
+	class HomebotManager(BaseManager):
+		pass
+	HomebotManager.register('get_feedback_queue')
+	manager = HomebotManager(address=(HOST, PORT), authkey=AUTH.encode('utf-8'))
+	manager.connect()
+	q = manager.get_feedback_queue()
+	#q.put({"name": configCameraName, "type": "camera", "time": startTime, "message": "this is a custom message."})
+	## end homebot ##
 
 	print("")
 	print("monitoring started at " + startTime.strftime("%Y-%m-%d %H:%M:%S"))
@@ -256,12 +262,17 @@ def main():
 	)
 	t.start()
 
-	print("initializing " + cameraName)
+	print("initializing " + configCameraName)
 	cameraprimer()
+	nextHeartbeat = time.time() - 1
 
 	while(True):
 		camera.read()
 		current_time = datetime.now()
+		if (time.time() >= nextHeartbeat):
+			log("sending heartbeat")
+			q.put({"name": configCameraName, "type": "camera", "time": startTime, "message": "heartbeat"})
+			nextHeartbeat = time.time() + heartbeatSeconds
 		if (configRuntimeMaximum < (current_time - startTime)):
 			log("total runtime expired, exiting.")
 			break
@@ -323,7 +334,6 @@ def main():
 		if telegram_command == "stop":
 			message = "Stopping per telegram request."
 			log(message)
-			send_telegram_message(message)
 			break;
 
 	log("monitoring stopped.  checking for final photo then shutting down.")
@@ -335,8 +345,10 @@ def main():
 		ret, image = camera.read()
 		ret, encoded = cv2.imencode('.jpg', image)
 		send_telegram("Final Photo", encoded.tobytes())
-	
-	log("closing camera and end motion detect")
+
+	exitMessage = "shutting down " + configCameraName
+	log(exitMessage)
+	send_telegram_message(exitMessage)
 	camera.release()
 
 if __name__ == "__main__":
