@@ -93,18 +93,21 @@ def send_telegram(inMessage, inImageData):
 	url = f"https://api.telegram.org/bot{token}/sendPhoto"
 	datestr = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 	caption = inMessage + " at " + datestr
-	response = requests.post(
-		url,
-		data={
-			"chat_id": chatId,
-			"caption": caption
-		},
-		files={
-			"photo": ("image.jpg", inImageData, "image/jpeg")
-		}
-	)
-	if not response.ok:
-		log(response.text)
+	try:
+		response = requests.post(
+			url,
+			data={
+				"chat_id": chatId,
+				"caption": caption
+			},
+			files={
+				"photo": ("image.jpg", inImageData, "image/jpeg")
+			}
+		)
+		if not response.ok:
+			log(response.text)
+	except:
+		log("EXCEPTION when sending telegram message.")
 
 def send_email(inImageData):
 	secrets = read_secrets(secrets_local_file)
