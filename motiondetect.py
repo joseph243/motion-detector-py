@@ -186,11 +186,25 @@ def telegramMessageWatcher(token, authorizedUser):
 			log(">>telegram polling error" + str(e))
 			time.sleep(5)
 
+def heartbeat():
+	heartbeatSeconds = 60
+	nextHeartbeat = time.time() - 1
+	while(True):
+		if (time.time() >= nextHeartbeat):
+			log("sending heartbeat")
+			homebot.put({"name": configCameraName, "type": "camera", "time": time.time(), "message": "heartbeat"})
+			nextHeartbeat = time.time() + heartbeatSeconds
+		else:
+			time.sleep(10)
+
 def main():
 	configs = read_config_file(config_local_file)
 	global configCameraName
 	global logLevel
 	global telegram_command
+	global homebot
+	global active
+	active = False
 	logLevel = int(configs["logLevel"])
 	configCameraName = configs["cameraName"]
 	configNotificationsAllowed = ("True" in configs["notificationsAllowed"])
@@ -208,7 +222,6 @@ def main():
 	startTime = datetime.now()
 	last_notification = datetime.now() - configNotificationFrequency
 	last_throttled = datetime.now()
-	heartbeatSeconds = 60
 
 	## connection to homebot ##
 	AUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"]
@@ -219,7 +232,7 @@ def main():
 	HomebotManager.register('get_feedback_queue')
 	manager = HomebotManager(address=(HOST, PORT), authkey=AUTH.encode('utf-8'))
 	manager.connect()
-	q = manager.get_feedback_queue()
+	homebot = manager.get_feedback_queue()
 	#q.put({"name": configCameraName, "type": "camera", "time": startTime, "message": "this is a custom message."})
 	## end homebot ##
 
@@ -263,19 +276,26 @@ def main():
 		daemon=True,
 		args=(read_secrets(secrets_local_file)["telegramtoken"],read_secrets(secrets_local_file)["telegramchatid"])
 	)
-	t.start()
+	#t.start()
+
+	print("starting heartbeat thread.")
+	u = threading.Thread(
+		target=heartbeat,
+		daemon=True
+	)
+	u.start()
 
 	print("initializing " + configCameraName)
 	cameraprimer()
-	nextHeartbeat = time.time() - 1
 
 	while(True):
+		if not active:
+			print("not active.")
+			time.sleep(60)
+			continue
+
 		camera.read()
 		current_time = datetime.now()
-		if (time.time() >= nextHeartbeat):
-			log("sending heartbeat")
-			q.put({"name": configCameraName, "type": "camera", "time": startTime, "message": "heartbeat"})
-			nextHeartbeat = time.time() + heartbeatSeconds
 		if (configRuntimeMaximum < (current_time - startTime)):
 			log("total runtime expired, exiting.")
 			break
@@ -337,7 +357,7 @@ def main():
 		if telegram_command == "stop":
 			message = "Stopping per telegram request."
 			log(message)
-			break;
+			break
 
 	log("monitoring stopped.  checking for final photo then shutting down.")
 	if (configFinalPicture and configNotificationsAllowed and configEmailNotify):
