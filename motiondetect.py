@@ -270,7 +270,7 @@ def main():
 
 	print("")
 
-	print("starting Telegram Watcher thread.")
+	log("starting Telegram Watcher thread.")
 	t = threading.Thread(
 		target=telegramMessageWatcher,
 		daemon=True,
@@ -278,19 +278,19 @@ def main():
 	)
 	#t.start()
 
-	print("starting heartbeat thread.")
+	log("starting heartbeat thread.")
 	u = threading.Thread(
 		target=heartbeat,
 		daemon=True
 	)
 	u.start()
 
-	print("initializing " + configCameraName)
+	log("initializing " + configCameraName)
 	cameraprimer()
 
 	while(True):
 		if not active:
-			print("not active.")
+			log("not active.")
 			time.sleep(60)
 			continue
 
