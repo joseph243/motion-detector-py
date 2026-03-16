@@ -1,4 +1,4 @@
-import cv2, time, numpy, smtplib, os, requests, socket, threading
+import cv2, time, numpy, smtplib, os, requests, socket, threading, queue
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
@@ -8,8 +8,6 @@ from multiprocessing.managers import BaseManager
 
 camera = cv2.VideoCapture(0)
 configCameraName = "DefaultCamera000"
-
-#api secrets:
 secrets_local_file = "~/.ssh/email.key"
 telegram_secrets_local_file = "~/.ssh/telegram.key"
 config_local_file = "motion.config"
@@ -192,18 +190,46 @@ def heartbeat():
 	while(True):
 		if (time.time() >= nextHeartbeat):
 			log("sending heartbeat")
-			homebot.put({"name": configCameraName, "type": "camera", "time": time.time(), "message": "heartbeat"})
+			homebotSend.put({"name": configCameraName, "type": "camera", "time": time.time(), "message": "heartbeat"})
 			nextHeartbeat = time.time() + heartbeatSeconds
 		else:
 			time.sleep(10)
 
+def initializeMessageSend() -> queue.Queue:
+	log("initialize network message send")
+	AUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"]
+	PORT = 55555
+	HOST = get_local_ip()
+	class MessageManager(BaseManager):
+		pass
+	MessageManager.register('outgoing')
+	manager = MessageManager(address=(HOST, PORT), authkey=AUTH.encode('utf-8'))
+	manager.connect()
+	return manager.outgoing()
+
+def initializeMessageReceive(key) -> queue.Queue:
+	LISTEN_TO_HOST = '10.0.0.235'
+	PORT = 55556
+	log("initialize network message receive")
+	messages = queue.Queue()
+	class MessageManager(BaseManager):
+		pass
+	MessageManager.register('incoming', callable=lambda: messages)
+	manager = MessageManager(address=(LISTEN_TO_HOST,PORT), authkey=key)
+	server = manager.get_server()
+	thread = threading.Thread(target = server.serve_forever, daemon=True)
+	thread.start()
+	log(f"Listening for messages on {LISTEN_TO_HOST}:{PORT}")
+	return messages
+
 def main():
-	configs = read_config_file(config_local_file)
 	global configCameraName
 	global logLevel
 	global telegram_command
-	global homebot
+	global homebotSend
+	global homebotReceive
 	global active
+	configs = read_config_file(config_local_file)
 	active = False
 	logLevel = int(configs["logLevel"])
 	configCameraName = configs["cameraName"]
@@ -222,19 +248,8 @@ def main():
 	startTime = datetime.now()
 	last_notification = datetime.now() - configNotificationFrequency
 	last_throttled = datetime.now()
-
-	## connection to homebot ##
-	AUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"]
-	PORT = 55555
-	HOST = get_local_ip()
-	class HomebotManager(BaseManager):
-		pass
-	HomebotManager.register('get_feedback_queue')
-	manager = HomebotManager(address=(HOST, PORT), authkey=AUTH.encode('utf-8'))
-	manager.connect()
-	homebot = manager.get_feedback_queue()
-	#q.put({"name": configCameraName, "type": "camera", "time": startTime, "message": "this is a custom message."})
-	## end homebot ##
+	homebotSend = initializeMessageSend()
+	homebotReceive = initializeMessageReceive()
 
 	print("")
 	print("monitoring started at " + startTime.strftime("%Y-%m-%d %H:%M:%S"))
