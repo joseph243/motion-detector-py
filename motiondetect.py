@@ -276,7 +276,7 @@ def main():
 		daemon=True,
 		args=(read_secrets(secrets_local_file)["telegramtoken"],read_secrets(secrets_local_file)["telegramchatid"])
 	)
-	#t.start()
+	t.start()
 
 	log("starting heartbeat thread.")
 	u = threading.Thread(
