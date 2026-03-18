@@ -195,20 +195,19 @@ def heartbeat():
 		else:
 			time.sleep(10)
 
-def initializeMessageSend() -> queue.Queue:
+def initializeMessageSend(key) -> queue.Queue:
 	log("initialize network message send")
-	AUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"]
 	PORT = 55555
-	HOST = get_local_ip()
+	HOST = '10.0.0.235'
 	class MessageManager(BaseManager):
 		pass
-	MessageManager.register('outgoing')
-	manager = MessageManager(address=(HOST, PORT), authkey=AUTH.encode('utf-8'))
+	MessageManager.register('homebot')
+	manager = MessageManager(address=(HOST, PORT), authkey=key)
 	manager.connect()
-	return manager.outgoing()
+	return manager.homebot()
 
 def initializeMessageReceive(key) -> queue.Queue:
-	LISTEN_TO_HOST = '10.0.0.235'
+	LISTEN_TO_HOST = get_local_ip()
 	PORT = 55556
 	log("initialize network message receive")
 	messages = queue.Queue()
@@ -248,8 +247,10 @@ def main():
 	startTime = datetime.now()
 	last_notification = datetime.now() - configNotificationFrequency
 	last_throttled = datetime.now()
-	homebotSend = initializeMessageSend()
-	homebotReceive = initializeMessageReceive()
+
+	NETWORKAUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"].encode('utf-8')
+	homebotSend = initializeMessageSend(NETWORKAUTH)
+	homebotReceive = initializeMessageReceive(NETWORKAUTH)
 
 	print("")
 	print("monitoring started at " + startTime.strftime("%Y-%m-%d %H:%M:%S"))
