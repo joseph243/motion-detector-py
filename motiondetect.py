@@ -1,4 +1,4 @@
-import cv2, time, numpy, smtplib, os, requests, socket, threading
+import cv2, time, numpy, smtplib, os, requests, socket, threading, queue
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
@@ -8,8 +8,6 @@ from multiprocessing.managers import BaseManager
 
 camera = cv2.VideoCapture(0)
 configCameraName = "DefaultCamera000"
-
-#api secrets:
 secrets_local_file = "~/.ssh/email.key"
 telegram_secrets_local_file = "~/.ssh/telegram.key"
 config_local_file = "motion.config"
@@ -18,9 +16,7 @@ def get_local_ip():
 	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	try:
 		s.connect(("8.8.8.8", 80))
-		return "127.0.0.1"
-		#enhancement for multi-pc:
-		#return s.getsockname()[0]
+		return s.getsockname()[0]
 	finally:
 		s.close()
 
@@ -160,8 +156,8 @@ def encodeImageWithText(inImage, inText):
 	return inImage
 
 def telegramMessageWatcher(token, authorizedUser):
-	global telegram_command
-	telegram_command = None
+	global command
+	command = None
 	last_update_id = 0
 	while True:
 		try:
@@ -181,16 +177,57 @@ def telegramMessageWatcher(token, authorizedUser):
 				chat_id = message.get("chat", {}).get("id")
 				text = message.get("text")
 				if str(authorizedUser) == str(chat_id):
-					telegram_command = text.lower()
+					command = text.lower()
 		except Exception as e:
 			log(">>telegram polling error" + str(e))
 			time.sleep(5)
 
+def heartbeat():
+	heartbeatSeconds = 60
+	nextHeartbeat = time.time() - 1
+	while(True):
+		if (time.time() >= nextHeartbeat):
+			log("sending heartbeat")
+			homebotSend.put({"name": configCameraName, "type": "camera", "time": time.time(), "message": "heartbeat"})
+			nextHeartbeat = time.time() + heartbeatSeconds
+		else:
+			time.sleep(10)
+
+def initializeMessageSend(key) -> queue.Queue:
+	log("initialize network message send")
+	PORT = 55555
+	HOST = '10.0.0.235'
+	class MessageManager(BaseManager):
+		pass
+	MessageManager.register('homebot')
+	manager = MessageManager(address=(HOST, PORT), authkey=key)
+	manager.connect()
+	return manager.homebot()
+
+def initializeMessageReceive(key) -> queue.Queue:
+	LISTEN_TO_HOST = get_local_ip()
+	PORT = 55556
+	log("initialize network message receive")
+	messages = queue.Queue()
+	class MessageManager(BaseManager):
+		pass
+	MessageManager.register("homebotSays", callable=lambda: messages)
+	manager = MessageManager(address=(LISTEN_TO_HOST,PORT), authkey=key)
+	server = manager.get_server()
+	thread = threading.Thread(target = server.serve_forever, daemon=True)
+	thread.start()
+	log(f"Listening for messages on {LISTEN_TO_HOST}:{PORT}")
+	return messages
+
 def main():
-	configs = read_config_file(config_local_file)
 	global configCameraName
 	global logLevel
-	global telegram_command
+	global command
+	global homebotSend
+	global homebotReceive
+	global active
+	configs = read_config_file(config_local_file)
+	active = False
 	logLevel = int(configs["logLevel"])
 	configCameraName = configs["cameraName"]
 	configNotificationsAllowed = ("True" in configs["notificationsAllowed"])
@@ -208,20 +245,10 @@ def main():
 	startTime = datetime.now()
 	last_notification = datetime.now() - configNotificationFrequency
 	last_throttled = datetime.now()
-	heartbeatSeconds = 60
 
-	## connection to homebot ##
-	AUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"]
-	PORT = 55555
-	HOST = get_local_ip()
-	class HomebotManager(BaseManager):
-		pass
-	HomebotManager.register('get_feedback_queue')
-	manager = HomebotManager(address=(HOST, PORT), authkey=AUTH.encode('utf-8'))
-	manager.connect()
-	q = manager.get_feedback_queue()
-	#q.put({"name": configCameraName, "type": "camera", "time": startTime, "message": "this is a custom message."})
-	## end homebot ##
+	NETWORKAUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"].encode('utf-8')
+	homebotSend = initializeMessageSend(NETWORKAUTH)
+	homebotReceive = initializeMessageReceive(NETWORKAUTH)
 
 	print("")
 	print("monitoring started at " + startTime.strftime("%Y-%m-%d %H:%M:%S"))
@@ -257,7 +284,7 @@ def main():
 
 	print("")
 
-	print("starting Telegram Watcher thread.")
+	log("starting Telegram Watcher thread.")
 	t = threading.Thread(
 		target=telegramMessageWatcher,
 		daemon=True,
@@ -265,31 +292,78 @@ def main():
 	)
 	t.start()
 
-	print("initializing " + configCameraName)
+	log("starting heartbeat thread.")
+	u = threading.Thread(
+		target=heartbeat,
+		daemon=True
+	)
+	u.start()
+
+	log("initializing " + configCameraName)
 	cameraprimer()
-	nextHeartbeat = time.time() - 1
 
 	while(True):
+		try:
+			command = homebotReceive.get_nowait()
+		except queue.Empty:
+			command = None
+			pass
+
+		if not active and command == None:
+			log("not active, no commands received.")
+			time.sleep(10)
+			continue
+
+		##HANDLE COMMANDS##
+		command = command.lower()
+		if command == "snapshot":
+			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
+			encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
+			if not encodeImgSuccess:
+				log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
+				continue
+			log("sending snapshot as requested.")
+			send_telegram("Snapshot Requested", encoded.tobytes())
+			command = None
+
+		if command == "status":
+			message = "Hello!  Camera monitoring is active since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + "."
+			log("sending telegram message: " + message)
+			send_telegram_message(message)
+			command = None
+
+		if command == "stop":
+			message = "Stopping per request."
+			log(message)
+			command = None
+			break
+
+		if command == "start":
+			message = "Starting per request."
+			log(message)
+			send_telegram_message(message)
+			active = True
+			command = None
+		##END COMMANDS##
+
+		if not active:
+			log("camera is not active.")
+			time.sleep(10)
+			continue
+
 		camera.read()
 		current_time = datetime.now()
-		if (time.time() >= nextHeartbeat):
-			log("sending heartbeat")
-			q.put({"name": configCameraName, "type": "camera", "time": startTime, "message": "heartbeat"})
-			nextHeartbeat = time.time() + heartbeatSeconds
-		if (configRuntimeMaximum < (current_time - startTime)):
-			log("total runtime expired, exiting.")
-			break
-		if (configWakeupTime > (current_time - startTime)):
-			log("wake up delay...")
-			time.sleep(60)
-			continue
+
 		if (configThrottleTime > (current_time - last_throttled)):
 			log("throttled...")
 			time.sleep(1)
 			continue
+
 		notificationCooldown = configNotificationFrequency > (current_time - last_notification)
+
 		if (logLevel > 0):
 			log("checking for motion...")
+
 		ret, image1 = camera.read()
 		time.sleep(configIntervalSeconds)
 		ret, image2 = camera.read()
@@ -320,24 +394,6 @@ def main():
 				if (configTelegramNotify):
 					log("...via telegram")
 					send_telegram("Motion Detected", encoded.tobytes())
-		if telegram_command == "snapshot":
-			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
-			encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
-			if not encodeImgSuccess:
-				log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
-				continue
-			log("sending snapshot as requested via telegram.")
-			send_telegram("Snapshot Requested", encoded.tobytes())
-			telegram_command = None
-		if telegram_command == "status":
-			message = "Hello!  Camera monitoring is active since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + "."
-			log("sending telegram message: " + message)
-			send_telegram_message(message)
-			telegram_command = None
-		if telegram_command == "stop":
-			message = "Stopping per telegram request."
-			log(message)
-			break;
 
 	log("monitoring stopped.  checking for final photo then shutting down.")
 	if (configFinalPicture and configNotificationsAllowed and configEmailNotify):
