@@ -16,9 +16,7 @@ def get_local_ip():
 	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	try:
 		s.connect(("8.8.8.8", 80))
-		return "127.0.0.1"
-		#enhancement for multi-pc:
-		#return s.getsockname()[0]
+		return s.getsockname()[0]
 	finally:
 		s.close()
 
@@ -158,8 +156,8 @@ def encodeImageWithText(inImage, inText):
 	return inImage
 
 def telegramMessageWatcher(token, authorizedUser):
-	global telegram_command
-	telegram_command = None
+	global command
+	command = None
 	last_update_id = 0
 	while True:
 		try:
@@ -179,7 +177,7 @@ def telegramMessageWatcher(token, authorizedUser):
 				chat_id = message.get("chat", {}).get("id")
 				text = message.get("text")
 				if str(authorizedUser) == str(chat_id):
-					telegram_command = text.lower()
+					command = text.lower()
 		except Exception as e:
 			log(">>telegram polling error" + str(e))
 			time.sleep(5)
@@ -213,7 +211,7 @@ def initializeMessageReceive(key) -> queue.Queue:
 	messages = queue.Queue()
 	class MessageManager(BaseManager):
 		pass
-	MessageManager.register('incoming', callable=lambda: messages)
+	MessageManager.register("homebotSays", callable=lambda: messages)
 	manager = MessageManager(address=(LISTEN_TO_HOST,PORT), authkey=key)
 	server = manager.get_server()
 	thread = threading.Thread(target = server.serve_forever, daemon=True)
@@ -224,7 +222,7 @@ def initializeMessageReceive(key) -> queue.Queue:
 def main():
 	global configCameraName
 	global logLevel
-	global telegram_command
+	global command
 	global homebotSend
 	global homebotReceive
 	global active
@@ -305,27 +303,67 @@ def main():
 	cameraprimer()
 
 	while(True):
+		try:
+			command = homebotReceive.get_nowait()
+		except queue.Empty:
+			command = None
+			pass
+
+		if not active and command == None:
+			log("not active, no commands received.")
+			time.sleep(10)
+			continue
+
+		##HANDLE COMMANDS##
+		command = command.lower()
+		if command == "snapshot":
+			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
+			encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
+			if not encodeImgSuccess:
+				log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
+				continue
+			log("sending snapshot as requested.")
+			send_telegram("Snapshot Requested", encoded.tobytes())
+			command = None
+
+		if command == "status":
+			message = "Hello!  Camera monitoring is active since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + "."
+			log("sending telegram message: " + message)
+			send_telegram_message(message)
+			command = None
+
+		if command == "stop":
+			message = "Stopping per request."
+			log(message)
+			command = None
+			break
+
+		if command == "start":
+			message = "Starting per request."
+			log(message)
+			send_telegram_message(message)
+			active = True
+			command = None
+		##END COMMANDS##
+
 		if not active:
-			log("not active.")
-			time.sleep(60)
+			log("camera is not active.")
+			time.sleep(10)
 			continue
 
 		camera.read()
 		current_time = datetime.now()
-		if (configRuntimeMaximum < (current_time - startTime)):
-			log("total runtime expired, exiting.")
-			break
-		if (configWakeupTime > (current_time - startTime)):
-			log("wake up delay...")
-			time.sleep(60)
-			continue
+
 		if (configThrottleTime > (current_time - last_throttled)):
 			log("throttled...")
 			time.sleep(1)
 			continue
+
 		notificationCooldown = configNotificationFrequency > (current_time - last_notification)
+
 		if (logLevel > 0):
 			log("checking for motion...")
+
 		ret, image1 = camera.read()
 		time.sleep(configIntervalSeconds)
 		ret, image2 = camera.read()
@@ -356,24 +394,6 @@ def main():
 				if (configTelegramNotify):
 					log("...via telegram")
 					send_telegram("Motion Detected", encoded.tobytes())
-		if telegram_command == "snapshot":
-			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
-			encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
-			if not encodeImgSuccess:
-				log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
-				continue
-			log("sending snapshot as requested via telegram.")
-			send_telegram("Snapshot Requested", encoded.tobytes())
-			telegram_command = None
-		if telegram_command == "status":
-			message = "Hello!  Camera monitoring is active since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + "."
-			log("sending telegram message: " + message)
-			send_telegram_message(message)
-			telegram_command = None
-		if telegram_command == "stop":
-			message = "Stopping per telegram request."
-			log(message)
-			break
 
 	log("monitoring stopped.  checking for final photo then shutting down.")
 	if (configFinalPicture and configNotificationsAllowed and configEmailNotify):
