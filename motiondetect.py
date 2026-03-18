@@ -303,6 +303,7 @@ def main():
 	cameraprimer()
 	telegramCommand = None
 	homebotCommand = None
+	command = None
 
 	while(True):
 		try:
@@ -325,7 +326,9 @@ def main():
 			continue
 
 		##HANDLE COMMANDS##
-		command = command.lower()
+		if command:
+			command = command.lower()
+			
 		if command == "snapshot":
 			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
 			encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
@@ -334,18 +337,20 @@ def main():
 				continue
 			log("sending snapshot as requested.")
 			send_telegram("Snapshot Requested", encoded.tobytes())
-			command = None
 
 		if command == "status":
-			message = "Hello!  Camera monitoring is active since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + "."
+			stateString = ""
+			if active:
+				stateString = "Active"
+			else:
+				stateString = "Inactive"
+			message = "Running since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + ". \n" + "Camera is " + stateString
 			log("sending telegram message: " + message)
 			send_telegram_message(message)
-			command = None
 
 		if command == "stop":
 			message = "Stopping per request."
 			log(message)
-			command = None
 			break
 
 		if command == "start":
@@ -353,7 +358,8 @@ def main():
 			log(message)
 			send_telegram_message(message)
 			active = True
-			command = None
+
+		command = None
 		##END COMMANDS##
 
 		if not active:
