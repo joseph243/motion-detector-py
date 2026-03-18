@@ -156,8 +156,7 @@ def encodeImageWithText(inImage, inText):
 	return inImage
 
 def telegramMessageWatcher(token, authorizedUser):
-	global command
-	command = None
+	global telegramCommand
 	last_update_id = 0
 	while True:
 		try:
@@ -177,7 +176,7 @@ def telegramMessageWatcher(token, authorizedUser):
 				chat_id = message.get("chat", {}).get("id")
 				text = message.get("text")
 				if str(authorizedUser) == str(chat_id):
-					command = text.lower()
+					telegramCommand = text.lower()
 		except Exception as e:
 			log(">>telegram polling error" + str(e))
 			time.sleep(5)
@@ -222,7 +221,8 @@ def initializeMessageReceive(key) -> queue.Queue:
 def main():
 	global configCameraName
 	global logLevel
-	global command
+	global homebotCommand
+	global telegramCommand
 	global homebotSend
 	global homebotReceive
 	global active
@@ -301,13 +301,23 @@ def main():
 
 	log("initializing " + configCameraName)
 	cameraprimer()
+	telegramCommand = None
+	homebotCommand = None
 
 	while(True):
 		try:
-			command = homebotReceive.get_nowait()
+			homebotCommand = homebotReceive.get_nowait()
 		except queue.Empty:
-			command = None
+			homebotCommand = None
 			pass
+
+		if telegramCommand != None:
+			command = telegramCommand
+			telegramCommand = None
+
+		if homebotCommand != None:
+			command = homebotCommand
+			homebotCommand = None
 
 		if not active and command == None:
 			log("not active, no commands received.")
