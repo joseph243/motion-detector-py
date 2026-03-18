@@ -109,10 +109,10 @@ def main():
 	print("debugs:  host=" + HOST + ", AUTH= " + AUTH)
 	class HomebotManager(BaseManager):
 		pass
-	HomebotManager.register('get_feedback_queue')
+	HomebotManager.register('homebot')
 	manager = HomebotManager(address=(HOST, PORT), authkey=AUTH.encode('utf-8'))
 	manager.connect()
-	q = manager.get_feedback_queue()
+	q = manager.homebot()
 	## end homebot setup ##
 
 	print("")
