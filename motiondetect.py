@@ -34,11 +34,9 @@ def read_secrets(inPath):
 def read_config_file(inPath):
 	print("reading configuration from " + inPath)
 	expectedFields = [
-    "wakeUpAfterMinutes",
     "intervalSecondsBetweenImages",
     "throttleSecondsAfterMotion",
     "sensitivityRating",
-    "shutDownAfterMinutes",
     "notificationFrequencyMinutes",
     "notificationsAllowed",
     "notifyEmail",
@@ -234,7 +232,6 @@ def main():
 	configCameraName = configs["cameraName"]
 	configNotificationsAllowed = ("True" in configs["notificationsAllowed"])
 	configNotificationFrequency = timedelta(minutes=int(configs["notificationFrequencyMinutes"]))
-	configWakeupTime = timedelta(minutes=int(configs["wakeUpAfterMinutes"]))
 	configIntervalSeconds = int(configs["intervalSecondsBetweenImages"])
 	configThrottleTime = timedelta(seconds=int(configs["throttleSecondsAfterMotion"]))
 	configSensitivity = int(configs["sensitivityRating"])
@@ -255,7 +252,6 @@ def main():
 	print("monitoring started at " + startTime.strftime("%Y-%m-%d %H:%M:%S"))
 	print("-----------------------------------------")
 	print("throttle time is      " + str(configThrottleTime))
-	print("startup wait is       " + str(configWakeupTime))
 	print("compare interval is   " + str(timedelta(seconds=configIntervalSeconds)))
 	print("logLevel is           " + str(logLevel))
 	print("-----------------------------------------")
