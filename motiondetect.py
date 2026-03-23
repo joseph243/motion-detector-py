@@ -187,7 +187,7 @@ def heartbeat():
 	while(True):
 		if (time.time() >= nextHeartbeat):
 			log("sending heartbeat")
-			homebotSend.put({"name": configCameraName, "type": "camera", "time": time.time(), "message": "heartbeat"})
+			homebotSend.put({"ip": myip, "name": configCameraName, "type": "camera", "time": time.time(), "message": "heartbeat"})
 			nextHeartbeat = time.time() + heartbeatSeconds
 		else:
 			time.sleep(10)
@@ -226,6 +226,8 @@ def main():
 	global homebotSend
 	global homebotReceive
 	global active
+	global myip
+	myip = get_local_ip()
 	configs = read_config_file(config_local_file)
 	active = False
 	logLevel = int(configs["logLevel"])
@@ -235,7 +237,6 @@ def main():
 	configWakeupTime = timedelta(minutes=int(configs["wakeUpAfterMinutes"]))
 	configIntervalSeconds = int(configs["intervalSecondsBetweenImages"])
 	configThrottleTime = timedelta(seconds=int(configs["throttleSecondsAfterMotion"]))
-	configRuntimeMaximum = timedelta(minutes=int(configs["shutDownAfterMinutes"]))
 	configSensitivity = int(configs["sensitivityRating"])
 	configSavePictures = ("True" in configs["savePictures"])
 	configStreaming = ("True" in configs["streaming"])
@@ -254,7 +255,6 @@ def main():
 	print("monitoring started at " + startTime.strftime("%Y-%m-%d %H:%M:%S"))
 	print("-----------------------------------------")
 	print("throttle time is      " + str(configThrottleTime))
-	print("runtime is            " + str(configRuntimeMaximum))
 	print("startup wait is       " + str(configWakeupTime))
 	print("compare interval is   " + str(timedelta(seconds=configIntervalSeconds)))
 	print("logLevel is           " + str(logLevel))
@@ -343,7 +343,7 @@ def main():
 			if active:
 				stateString = "Active"
 			else:
-				stateString = "Inactive"
+				stateString = "Not Active"
 			message = "Running since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + ". \n" + "Camera is " + stateString
 			log("sending telegram message: " + message)
 			send_telegram_message(message)
@@ -358,6 +358,12 @@ def main():
 			log(message)
 			send_telegram_message(message)
 			active = True
+		
+		if command == "sleep":
+			message = "Sleeping camera per request."
+			log(message)
+			send_telegram_message(message)
+			active = False
 
 		command = None
 		##END COMMANDS##
