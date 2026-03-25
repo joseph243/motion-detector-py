@@ -348,10 +348,9 @@ def main():
 
 		current_time = datetime.now()
 
-		remainingThrottle = (last_throttled + configThrottleTime) - current_time
-		if (remainingThrottle.total_seconds > 0):
-			log(f"throttled for {remainingThrottle.total_seconds:.1f} seconds")
-			time.sleep(remainingThrottle.total_seconds)
+		if (configThrottleTime > (current_time - last_throttled)):
+			log("throttled...")
+			time.sleep(1)
 			continue
 
 		camera.read()
