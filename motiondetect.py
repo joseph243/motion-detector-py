@@ -129,10 +129,11 @@ def encodeImageWithText(inImage, inText):
 def telegramMessageWatcher(token, authorizedUser):
 	global telegramCommand
 	last_update_id = 0
+	session = requests.Session()
 	while True:
 		try:
 			log(">>telegram polling")
-			r = requests.get(
+			r = session.get(
         		f"https://api.telegram.org/bot{token}/getUpdates",
         		params={
             		"timeout": 30,
@@ -151,6 +152,7 @@ def telegramMessageWatcher(token, authorizedUser):
 		except Exception as e:
 			log(">>telegram polling error" + str(e))
 			time.sleep(5)
+		time.sleep(1)
 
 def heartbeat():
 	heartbeatSeconds = 60
