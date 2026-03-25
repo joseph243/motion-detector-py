@@ -309,8 +309,7 @@ def main():
 				continue
 			log("sending snapshot as requested.")
 			send_telegram("Snapshot Requested", encoded.tobytes())
-
-		if command == "status":
+		elif command == "status":
 			stateString = ""
 			if active:
 				stateString = "Active"
@@ -319,39 +318,41 @@ def main():
 			message = "Running since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + ". \n" + "Camera is " + stateString
 			log("sending telegram message: " + message)
 			send_telegram_message(message)
-
-		if command == "stop":
+		elif command == "stop":
 			message = "Stopping per request."
 			log(message)
 			break
-
-		if command == "start":
+		elif command == "start":
 			message = "Starting per request."
 			log(message)
 			send_telegram_message(message)
 			active = True
-		
-		if command == "sleep":
+		elif command == "sleep":
 			message = "Sleeping camera per request."
 			log(message)
 			send_telegram_message(message)
 			active = False
+		else:
+			message = "Unknown command " + command
+			log(message)
+			send_telegram_message(message)
 
 		command = None
 		##END COMMANDS##
 
 		if not active:
-			log("camera is not active.")
 			time.sleep(10)
 			continue
 
-		camera.read()
 		current_time = datetime.now()
 
-		if (configThrottleTime > (current_time - last_throttled)):
-			log("throttled...")
-			time.sleep(1)
+		remainingThrottle = (last_throttled + configThrottleTime) - current_time
+		if (remainingThrottle.total_seconds > 0):
+			log(f"throttled for {remainingThrottle.total_seconds:.1f} seconds")
+			time.sleep(remainingThrottle.total_seconds)
 			continue
+
+		camera.read()
 
 		notificationCooldown = configNotificationFrequency > (current_time - last_notification)
 
@@ -385,6 +386,7 @@ def main():
 				if (configTelegramNotify):
 					log("...via telegram")
 					send_telegram("Motion Detected", encoded.tobytes())
+	##END LOOP##
 
 	log("monitoring stopped.  checking for final photo then shutting down.")
 	if (configFinalPicture and configNotificationsAllowed and configTelegramNotify):
