@@ -205,7 +205,7 @@ def main():
 	secrets = read_secrets(secrets_local_file)
 	secretTelegramChatId = secrets["telegramchatid"]
 	secretTelegramToken = secrets["telegramtoken"]
-	NETWORKAUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"].encode('utf-8')a
+	NETWORKAUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"].encode('utf-8')
 
 	myip = get_local_ip()
 	configs = read_config_file(config_local_file)
