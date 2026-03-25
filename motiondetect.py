@@ -302,42 +302,41 @@ def main():
 		##HANDLE COMMANDS##
 		if command:
 			command = command.lower()
-			
-		if command == "snapshot":
-			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
-			encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
-			if not encodeImgSuccess:
-				log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
-				continue
-			log("sending snapshot as requested.")
-			send_telegram("Snapshot Requested", encoded.tobytes())
-		elif command == "status":
-			stateString = ""
-			if active:
-				stateString = "Active"
+			if command == "snapshot":
+				image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
+				encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
+				if not encodeImgSuccess:
+					log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
+					continue
+				log("sending snapshot as requested.")
+				send_telegram("Snapshot Requested", encoded.tobytes())
+			elif command == "status":
+				stateString = ""
+				if active:
+					stateString = "Active"
+				else:
+					stateString = "Not Active"
+				message = "Running since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + ". \n" + "Camera is " + stateString
+				log("sending telegram message: " + message)
+				send_telegram_message(message)
+			elif command == "stop":
+				message = "Stopping per request."
+				log(message)
+				break
+			elif command == "start":
+				message = "Starting per request."
+				log(message)
+				send_telegram_message(message)
+				active = True
+			elif command == "sleep":
+				message = "Sleeping camera per request."
+				log(message)
+				send_telegram_message(message)
+				active = False
 			else:
-				stateString = "Not Active"
-			message = "Running since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + ". \n" + "Camera is " + stateString
-			log("sending telegram message: " + message)
-			send_telegram_message(message)
-		elif command == "stop":
-			message = "Stopping per request."
-			log(message)
-			break
-		elif command == "start":
-			message = "Starting per request."
-			log(message)
-			send_telegram_message(message)
-			active = True
-		elif command == "sleep":
-			message = "Sleeping camera per request."
-			log(message)
-			send_telegram_message(message)
-			active = False
-		else:
-			message = "Unknown command " + command
-			log(message)
-			send_telegram_message(message)
+				message = "Unknown command " + command
+				log(message)
+				send_telegram_message(message)
 
 		command = None
 		##END COMMANDS##
