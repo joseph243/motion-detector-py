@@ -39,7 +39,6 @@ def read_config_file(inPath):
     "sensitivityRating",
     "notificationFrequencyMinutes",
     "notificationsAllowed",
-    "notifyEmail",
     "notifyTelegram",
     "cameraName",
     "savePictures",
@@ -66,14 +65,11 @@ def capture_and_save_image(inImage):
 	return saveLoc
 
 def send_telegram_message(inMessage):
-	secrets = read_secrets(secrets_local_file)
-	chatId = secrets["telegramchatid"]
-	token = secrets["telegramtoken"]
-	url = f"https://api.telegram.org/bot{token}/sendMessage"
+	url = f"https://api.telegram.org/bot{secretTelegramToken}/sendMessage"
 	response = requests.post(
 		url,
 		data={
-			"chat_id": chatId,
+			"chat_id": secretTelegramChatId,
 			"text": inMessage
 		},
 	)
@@ -81,17 +77,14 @@ def send_telegram_message(inMessage):
 		log(response.text)
 
 def send_telegram(inMessage, inImageData):
-	secrets = read_secrets(secrets_local_file)
-	chatId = secrets["telegramchatid"]
-	token = secrets["telegramtoken"]
-	url = f"https://api.telegram.org/bot{token}/sendPhoto"
+	url = f"https://api.telegram.org/bot{secretTelegramToken}/sendPhoto"
 	datestr = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 	caption = inMessage + " at " + datestr
 	try:
 		response = requests.post(
 			url,
 			data={
-				"chat_id": chatId,
+				"chat_id": secretTelegramChatId,
 				"caption": caption
 			},
 			files={
@@ -102,26 +95,6 @@ def send_telegram(inMessage, inImageData):
 			log(response.text)
 	except:
 		log("EXCEPTION when sending telegram message.")
-
-def send_email(inImageData):
-	secrets = read_secrets(secrets_local_file)
-	datestr = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-	username = secrets["username"]
-	token = secrets["token"]
-	server = secrets["server"]
-	notifyAddress = secrets["sendto"]
-	port = int(secrets["port"])
-	message = MIMEMultipart()
-	message['From'] = username
-	message['To'] = notifyAddress
-	message['Subject'] = configCameraName
-	message.attach(MIMEText("Motion Detected at " + datestr + ": "))
-	message.attach(MIMEImage(inImageData))
-	connection = smtplib.SMTP(server, port)
-	connection.starttls()
-	connection.login(username, token)
-	connection.sendmail(username,notifyAddress, message.as_string())
-	connection.quit
 
 def compareImages(inImage1, inImage2, sensitivity):
 	try:
@@ -156,10 +129,11 @@ def encodeImageWithText(inImage, inText):
 def telegramMessageWatcher(token, authorizedUser):
 	global telegramCommand
 	last_update_id = 0
+	session = requests.Session()
 	while True:
 		try:
 			log(">>telegram polling")
-			r = requests.get(
+			r = session.get(
         		f"https://api.telegram.org/bot{token}/getUpdates",
         		params={
             		"timeout": 30,
@@ -178,6 +152,7 @@ def telegramMessageWatcher(token, authorizedUser):
 		except Exception as e:
 			log(">>telegram polling error" + str(e))
 			time.sleep(5)
+		time.sleep(1)
 
 def heartbeat():
 	heartbeatSeconds = 60
@@ -225,6 +200,13 @@ def main():
 	global homebotReceive
 	global active
 	global myip
+	global secretTelegramChatId
+	global secretTelegramToken
+	secrets = read_secrets(secrets_local_file)
+	secretTelegramChatId = secrets["telegramchatid"]
+	secretTelegramToken = secrets["telegramtoken"]
+	NETWORKAUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"].encode('utf-8')
+
 	myip = get_local_ip()
 	configs = read_config_file(config_local_file)
 	active = False
@@ -238,13 +220,11 @@ def main():
 	configSavePictures = ("True" in configs["savePictures"])
 	configStreaming = ("True" in configs["streaming"])
 	configFinalPicture = ("True" in configs["finalPicture"])
-	configEmailNotify = ("True" in configs["notifyEmail"])
 	configTelegramNotify = ("True" in configs["notifyTelegram"])
 	startTime = datetime.now()
 	last_notification = datetime.now() - configNotificationFrequency
 	last_throttled = datetime.now()
 
-	NETWORKAUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"].encode('utf-8')
 	homebotSend = initializeMessageSend(NETWORKAUTH)
 	homebotReceive = initializeMessageReceive(NETWORKAUTH)
 
@@ -259,8 +239,6 @@ def main():
 
 	if (configNotificationsAllowed):
 		print("Notifications are enabled   with frequency of " + str(configNotificationFrequency))
-		if (configEmailNotify):
-			print("                                   email ON")
 		if (configTelegramNotify):
 			print("                                   telegram ON")
 	else:
@@ -284,7 +262,7 @@ def main():
 	t = threading.Thread(
 		target=telegramMessageWatcher,
 		daemon=True,
-		args=(read_secrets(secrets_local_file)["telegramtoken"],read_secrets(secrets_local_file)["telegramchatid"])
+		args=(secretTelegramToken,secretTelegramChatId)
 	)
 	t.start()
 
@@ -324,58 +302,57 @@ def main():
 		##HANDLE COMMANDS##
 		if command:
 			command = command.lower()
-			
-		if command == "snapshot":
-			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
-			encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
-			if not encodeImgSuccess:
-				log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
-				continue
-			log("sending snapshot as requested.")
-			send_telegram("Snapshot Requested", encoded.tobytes())
-
-		if command == "status":
-			stateString = ""
-			if active:
-				stateString = "Active"
+			if command == "snapshot":
+				image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
+				encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
+				if not encodeImgSuccess:
+					log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
+					continue
+				log("sending snapshot as requested.")
+				send_telegram("Snapshot Requested", encoded.tobytes())
+			elif command == "status":
+				stateString = ""
+				if active:
+					stateString = "Active"
+				else:
+					stateString = "Not Active"
+				message = "Running since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + ". \n" + "Camera is " + stateString
+				log("sending telegram message: " + message)
+				send_telegram_message(message)
+			elif command == "stop":
+				message = "Stopping per request."
+				log(message)
+				break
+			elif command == "start":
+				message = "Starting per request."
+				log(message)
+				send_telegram_message(message)
+				active = True
+			elif command == "sleep":
+				message = "Sleeping camera per request."
+				log(message)
+				send_telegram_message(message)
+				active = False
 			else:
-				stateString = "Not Active"
-			message = "Running since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + ". \n" + "Camera is " + stateString
-			log("sending telegram message: " + message)
-			send_telegram_message(message)
-
-		if command == "stop":
-			message = "Stopping per request."
-			log(message)
-			break
-
-		if command == "start":
-			message = "Starting per request."
-			log(message)
-			send_telegram_message(message)
-			active = True
-		
-		if command == "sleep":
-			message = "Sleeping camera per request."
-			log(message)
-			send_telegram_message(message)
-			active = False
+				message = "Unknown command " + command
+				log(message)
+				send_telegram_message(message)
 
 		command = None
 		##END COMMANDS##
 
 		if not active:
-			log("camera is not active.")
 			time.sleep(10)
 			continue
 
-		camera.read()
 		current_time = datetime.now()
 
 		if (configThrottleTime > (current_time - last_throttled)):
 			log("throttled...")
 			time.sleep(1)
 			continue
+
+		camera.read()
 
 		notificationCooldown = configNotificationFrequency > (current_time - last_notification)
 
@@ -406,18 +383,12 @@ def main():
 			if (configNotificationsAllowed and not notificationCooldown):
 				log("notification sending...")
 				last_notification = current_time
-				if (configEmailNotify):
-					log("...via email")
-					send_email(encoded.tobytes())
 				if (configTelegramNotify):
 					log("...via telegram")
 					send_telegram("Motion Detected", encoded.tobytes())
+	##END LOOP##
 
 	log("monitoring stopped.  checking for final photo then shutting down.")
-	if (configFinalPicture and configNotificationsAllowed and configEmailNotify):
-		ret, image = camera.read()
-		ret, encoded = cv2.imencode('.jpg', image)
-		send_email(encoded.tobytes())
 	if (configFinalPicture and configNotificationsAllowed and configTelegramNotify):
 		ret, image = camera.read()
 		ret, encoded = cv2.imencode('.jpg', image)
