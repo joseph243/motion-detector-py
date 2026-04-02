@@ -348,9 +348,9 @@ def main():
 						configNotificationFrequency = timedelta(minutes=int(param))
 						message = "Adjusting message frequency to " + param + " minutes."
 					except ValueError:
-						message = "You cannot set message frequency to the value " + param + "."
+						message = "You cannot set message frequency to the value " + param + ". It must be a number."
 				else:
-					"This command expects a number, in minutes, to set message frequency to."
+					message = "This command expects a number, in minutes, to set message frequency to."
 				log(message)
 				send_telegram_message(message)
 			else:
