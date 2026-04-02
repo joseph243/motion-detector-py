@@ -302,6 +302,7 @@ def main():
 		##HANDLE COMMANDS##
 		if command:
 			command = command.lower()
+			command, _, param = command.partition(" ")
 			if command == "snapshot":
 				image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
 				encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
@@ -321,7 +322,8 @@ def main():
 				"Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + ". \n" +
 				"Notifications are " + notifyStr + ". \n" +
 				"Motion Interval is " + motionStr + " seconds. \n" +
-				"Streaming is " + streamStr + ". \n"
+				"Streaming is " + streamStr + ". \n" +
+				"throttle time is " + str(configThrottleTime)
 				)
 				log("sending telegram message: " + message)
 				send_telegram_message(message)
@@ -339,6 +341,18 @@ def main():
 				log(message)
 				send_telegram_message(message)
 				active = False
+			elif command == "throttle":
+				if param:
+					try:
+						param = int(param)
+						configThrottleTime = timedelta(seconds=int(param))
+						message = "Adjusting throttle time to " + param
+					except ValueError:
+						message = "You cannot set throttle to the value " + param + "."
+				else:
+					"This command expects a number, in minutes, to set throttle time to."
+				log(message)
+				send_telegram_message(message)
 			else:
 				message = "Unknown command " + command
 				log(message)
