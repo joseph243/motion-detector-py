@@ -341,16 +341,16 @@ def main():
 				log(message)
 				send_telegram_message(message)
 				active = False
-			elif command == "throttle":
+			elif command == "frequency":
 				if param:
 					try:
 						param = int(param)
-						configThrottleTime = timedelta(seconds=int(param))
-						message = "Adjusting throttle time to " + param
+						configNotificationFrequency = timedelta(minutes=int(param))
+						message = "Adjusting message frequency to " + param + " minutes."
 					except ValueError:
-						message = "You cannot set throttle to the value " + param + "."
+						message = "You cannot set message frequency to the value " + param + "."
 				else:
-					"This command expects a number, in minutes, to set throttle time to."
+					"This command expects a number, in minutes, to set message frequency to."
 				log(message)
 				send_telegram_message(message)
 			else:
