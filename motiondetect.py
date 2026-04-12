@@ -232,16 +232,11 @@ def main():
 	print("")
 
 	if (configNotificationsAllowed):
-		print("Notifications are enabled   with frequency of " + str(configNotificationFrequency))
+		print("Notifications are enabled   with frequency of " + str(configFrequency))
 		if (configTelegramNotify):
 			print("                                   telegram ON")
 	else:
 		print("Notifications are disabled")
-
-	if (configFinalPicture and configNotificationsAllowed):
-		print("Final picture is  enabled")
-	else:
-		print("Final picture is  disabled")
 
 	if (configStreaming):
 		print("Streaming is      enabled")
