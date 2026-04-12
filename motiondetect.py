@@ -346,9 +346,9 @@ def main():
 					try:
 						param = int(param)
 						configNotificationFrequency = timedelta(minutes=int(param))
-						message = "Adjusting message frequency to " + param + " minutes."
+						message = "Adjusting message frequency to " + str(param) + " minutes."
 					except ValueError:
-						message = "You cannot set message frequency to the value " + param + ". It must be a number."
+						message = "You cannot set message frequency to the value " + str(param) + ". It must be a number."
 				else:
 					message = "This command expects a number, in minutes, to set message frequency to."
 				log(message)
