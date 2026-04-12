@@ -265,7 +265,7 @@ def main():
 	telegramCommand = None
 	homebotCommand = None
 	command = None
-	current_time = datetime.now()
+	cooldown = True
 
 	while(True):
 		try:
@@ -304,7 +304,7 @@ def main():
 				notifyStr = "enabled" if configNotificationsAllowed else "disabled"
 				motionStr = str(configIntervalSeconds)
 				streamStr = "Active" if configStreaming else "Not Active"
-				onCoolDownStr = "Active" if (configFrequency > (current_time - last_motion)) else "On Cooldown"
+				onCoolDownStr = "On Cooldown" if cooldown else "Active"
 				message = (
 					"Running since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". \n" +
 					"Camera is " + stateStr + ". \n" +
@@ -356,8 +356,9 @@ def main():
 			continue
 
 		current_time = datetime.now()
+		cooldown = configFrequency > (current_time - last_motion)
 
-		if (configFrequency > (current_time - last_motion)):
+		if (cooldown):
 			log("on cooldown...")
 			time.sleep(5)
 			continue
