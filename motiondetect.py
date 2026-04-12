@@ -35,7 +35,6 @@ def read_config_file(inPath):
 	print("reading configuration from " + inPath)
 	expectedFields = [
     "intervalSecondsBetweenImages",
-    "throttleSecondsAfterMotion",
     "sensitivityRating",
     "notificationFrequencyMinutes",
     "notificationsAllowed",
@@ -44,7 +43,6 @@ def read_config_file(inPath):
     "savePictures",
     "logLevel",
     "streaming",
-    "finalPicture"
 	]
 	inPath = os.path.expanduser(inPath)
 	configs = {}
@@ -213,17 +211,13 @@ def main():
 	logLevel = int(configs["logLevel"])
 	configCameraName = configs["cameraName"]
 	configNotificationsAllowed = ("True" in configs["notificationsAllowed"])
-	configNotificationFrequency = timedelta(minutes=int(configs["notificationFrequencyMinutes"]))
+	configFrequency = timedelta(minutes=int(configs["notificationFrequencyMinutes"]))
 	configIntervalSeconds = int(configs["intervalSecondsBetweenImages"])
-	configThrottleTime = timedelta(seconds=int(configs["throttleSecondsAfterMotion"]))
 	configSensitivity = int(configs["sensitivityRating"])
 	configSavePictures = ("True" in configs["savePictures"])
 	configStreaming = ("True" in configs["streaming"])
-	configFinalPicture = ("True" in configs["finalPicture"])
 	configTelegramNotify = ("True" in configs["notifyTelegram"])
 	startTime = datetime.now()
-	last_notification = datetime.now() - configNotificationFrequency
-	last_throttled = datetime.now()
 
 	homebotSend = initializeMessageSend(NETWORKAUTH)
 	homebotReceive = initializeMessageReceive(NETWORKAUTH)
@@ -231,7 +225,7 @@ def main():
 	print("")
 	print("monitoring started at " + startTime.strftime("%Y-%m-%d %H:%M:%S"))
 	print("-----------------------------------------")
-	print("throttle time is      " + str(configThrottleTime))
+	print("frequency is          " + str(configFrequency))
 	print("compare interval is   " + str(timedelta(seconds=configIntervalSeconds)))
 	print("logLevel is           " + str(logLevel))
 	print("-----------------------------------------")
@@ -313,24 +307,36 @@ def main():
 				send_telegram("Snapshot Requested", encoded.tobytes())
 			elif command == "status":
 				stateStr = "Active" if active else "Not Active"
-				notifyStr = "enabled" if configNotificationsAllowed else "disabled" 
+				notifyStr = "enabled" if configNotificationsAllowed else "disabled"
 				motionStr = str(configIntervalSeconds)
 				streamStr = "Active" if configStreaming else "Not Active"
 				message = (
-				"Running since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". \n" +
-				"Camera is " + stateStr + ". \n" +
-				"Last motion detected was at " + last_throttled.strftime("%Y-%m-%d %H:%M:%S") + ". \n" +
-				"Notifications are " + notifyStr + ". \n" +
-				"Motion Interval is " + motionStr + " seconds. \n" +
-				"Streaming is " + streamStr + ". \n" +
-				"throttle time is " + str(configThrottleTime)
-				)
+					"Running since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". \n" +
+					"Camera is " + stateStr + ". \n" +
+					"Last motion detected was at " + last_motion.strftime("%Y-%m-%d %H:%M:%S") + ". \n" +
+					"Notifications are " + notifyStr + ". \n" +
+					"Motion Interval is " + motionStr + " seconds. \n" +
+					"Streaming is " + streamStr + ". \n" +
+					"alert frequency is " + str(configFrequency)
+					)
 				log("sending telegram message: " + message)
 				send_telegram_message(message)
 			elif command == "stop":
 				message = "Stopping per request."
 				log(message)
 				break
+			elif command == "frequency":
+				if param:
+					try:
+						param = int(param)
+						configFrequency = timedelta(minutes=int(param))
+						message = "Adjusting message frequency to " + str(param) + " minutes."
+					except ValueError:
+						message = "You cannot set message frequency to the value " + str(param) + ". It must be a number."
+				else:
+					message = "This command expects a number, in minutes, to set message frequency to."
+					log(message)
+					send_telegram_message(message)
 			elif command == "start":
 				message = "Starting per request."
 				log(message)
@@ -341,23 +347,11 @@ def main():
 				log(message)
 				send_telegram_message(message)
 				active = False
-			elif command == "frequency":
-				if param:
-					try:
-						param = int(param)
-						configNotificationFrequency = timedelta(minutes=int(param))
-						message = "Adjusting message frequency to " + str(param) + " minutes."
-					except ValueError:
-						message = "You cannot set message frequency to the value " + str(param) + ". It must be a number."
-				else:
-					message = "This command expects a number, in minutes, to set message frequency to."
-				log(message)
-				send_telegram_message(message)
 			else:
 				message = "Unknown command " + command
 				log(message)
 				send_telegram_message(message)
-
+		
 		command = None
 		##END COMMANDS##
 
@@ -367,14 +361,12 @@ def main():
 
 		current_time = datetime.now()
 
-		if (configThrottleTime > (current_time - last_throttled)):
-			log("throttled...")
-			time.sleep(1)
+		if (configFrequency > (current_time - last_motion)):
+			log("on cooldown...")
+			time.sleep(5)
 			continue
 
 		camera.read()
-
-		notificationCooldown = configNotificationFrequency > (current_time - last_notification)
 
 		if (logLevel > 0):
 			log("checking for motion...")
@@ -385,7 +377,7 @@ def main():
 		motion = compareImages(image1, image2, configSensitivity)
 		if motion:
 			log("MOTION DETECTED")
-			last_throttled = current_time
+			last_motion = current_time
 			image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
 			encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
 			if not encodeImgSuccess:
@@ -396,23 +388,14 @@ def main():
 				capture_and_save_image(image2)
 			if not configSavePictures:
 				log("saved images are disabled.")
-			if (configNotificationsAllowed and notificationCooldown):
-				log("notifications are allowed, but on cooldown.")
 			if not configNotificationsAllowed:
 				log("notifications are disabled.")
-			if (configNotificationsAllowed and not notificationCooldown):
+			if (configNotificationsAllowed):
 				log("notification sending...")
-				last_notification = current_time
 				if (configTelegramNotify):
 					log("...via telegram")
 					send_telegram("Motion Detected", encoded.tobytes())
 	##END LOOP##
-
-	log("monitoring stopped.  checking for final photo then shutting down.")
-	if (configFinalPicture and configNotificationsAllowed and configTelegramNotify):
-		ret, image = camera.read()
-		ret, encoded = cv2.imencode('.jpg', image)
-		send_telegram("Final Photo", encoded.tobytes())
 
 	exitMessage = "shutting down " + configCameraName
 	log(exitMessage)
