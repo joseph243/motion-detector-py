@@ -229,13 +229,9 @@ def main():
 	print("frequency is          " + str(configFrequency))
 	print("compare interval is   " + str(timedelta(seconds=configIntervalSeconds)))
 	print("logLevel is           " + str(logLevel))
-	print("-----------------------------------------")
-	print("")
 
 	if (configNotificationsAllowed):
-		print("Notifications are enabled   with frequency of " + str(configFrequency))
-		if (configTelegramNotify):
-			print("                                   telegram ON")
+		print("Notifications are enabled")
 	else:
 		print("Notifications are disabled")
 
@@ -246,6 +242,7 @@ def main():
 	else:
 		print("Streaming is      disabled")
 
+	print("-----------------------------------------")
 	print("")
 
 	log("starting Telegram Watcher thread.")
@@ -268,6 +265,7 @@ def main():
 	telegramCommand = None
 	homebotCommand = None
 	command = None
+	current_time = datetime.now()
 
 	while(True):
 		try:
