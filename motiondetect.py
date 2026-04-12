@@ -218,6 +218,7 @@ def main():
 	configStreaming = ("True" in configs["streaming"])
 	configTelegramNotify = ("True" in configs["notifyTelegram"])
 	startTime = datetime.now()
+	last_motion = startTime
 
 	homebotSend = initializeMessageSend(NETWORKAUTH)
 	homebotReceive = initializeMessageReceive(NETWORKAUTH)
