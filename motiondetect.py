@@ -306,9 +306,11 @@ def main():
 				notifyStr = "enabled" if configNotificationsAllowed else "disabled"
 				motionStr = str(configIntervalSeconds)
 				streamStr = "Active" if configStreaming else "Not Active"
+				onCoolDownStr = "Active" if (configFrequency > (current_time - last_motion)) else "On Cooldown"
 				message = (
 					"Running since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". \n" +
 					"Camera is " + stateStr + ". \n" +
+					"Motion detection is " + onCoolDownStr + ". \n" +
 					"Last motion at " + last_motion.strftime("%Y-%m-%d %H:%M:%S") + ". \n" +
 					"Notifications are " + notifyStr + ". \n" +
 					"Motion Interval is " + motionStr + " seconds. \n" +
