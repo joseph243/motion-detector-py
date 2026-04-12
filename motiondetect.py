@@ -309,11 +309,11 @@ def main():
 				message = (
 					"Running since " + startTime.strftime("%Y-%m-%d %H:%M:%S") + ". \n" +
 					"Camera is " + stateStr + ". \n" +
-					"Last motion detected was at " + last_motion.strftime("%Y-%m-%d %H:%M:%S") + ". \n" +
+					"Last motion at " + last_motion.strftime("%Y-%m-%d %H:%M:%S") + ". \n" +
 					"Notifications are " + notifyStr + ". \n" +
 					"Motion Interval is " + motionStr + " seconds. \n" +
 					"Streaming is " + streamStr + ". \n" +
-					"alert frequency is " + str(configFrequency)
+					"Alert frequency is " + str(configFrequency)
 					)
 				log("sending telegram message: " + message)
 				send_telegram_message(message)
@@ -332,7 +332,7 @@ def main():
 				else:
 					message = "This command expects a number, in minutes, to set message frequency to."
 					log(message)
-					send_telegram_message(message)
+				send_telegram_message(message)
 			elif command == "start":
 				message = "Starting per request."
 				log(message)
