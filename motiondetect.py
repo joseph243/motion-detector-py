@@ -292,8 +292,9 @@ def main():
 			command = command.lower()
 			command, _, param = command.partition(" ")
 			if command == "snapshot":
-				image2 = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
-				encodeImgSuccess, encoded = cv2.imencode('.jpg', image2)
+				ret, snapshotimage = camera.read()
+				snapshotimage = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
+				encodeImgSuccess, encoded = cv2.imencode('.jpg', snapshotimage)
 				if not encodeImgSuccess:
 					log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
 					continue
