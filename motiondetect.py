@@ -292,6 +292,7 @@ def main():
 			command = command.lower()
 			command, _, param = command.partition(" ")
 			if command == "snapshot":
+				cameraprimer()
 				ret, snapshotimage = camera.read()
 				snapshotimage = encodeImageWithText(image2, current_time.strftime("%Y-%m-%d %H:%M:%S"))
 				encodeImgSuccess, encoded = cv2.imencode('.jpg', snapshotimage)
