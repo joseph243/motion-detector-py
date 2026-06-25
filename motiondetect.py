@@ -121,7 +121,7 @@ def encodeImageWithText(inImage, inText):
 	height, *_ = inImage.shape
 	buffer = 10
 	position = (buffer, height-buffer)
-	cv2.putText(inImage, str(inText), position, cv2.FONT_HERSHEY_DUPLEX, 1, (0,0,0), 2, cv2.LINE_AA)
+	cv2.putText(inImage, str(inText), position, cv2.FONT_HERSHEY_DUPLEX, 1, (0,0,255), 2, cv2.LINE_AA)
 	return inImage
 
 def telegramMessageWatcher(token, authorizedUser):
