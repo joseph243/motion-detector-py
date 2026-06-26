@@ -91,8 +91,9 @@ def send_telegram(inMessage, inImageData):
 		)
 		if not response.ok:
 			log(response.text)
-	except:
-		log("EXCEPTION when sending telegram message.")
+	except Exception as e:
+		log("EXCEPTION when sending telegram message:")
+		log(str(e))
 
 def compareImages(inImage1, inImage2, sensitivity):
 	try:
