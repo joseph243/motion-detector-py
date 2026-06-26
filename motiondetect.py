@@ -91,8 +91,9 @@ def send_telegram(inMessage, inImageData):
 		)
 		if not response.ok:
 			log(response.text)
-	except:
-		log("EXCEPTION when sending telegram message.")
+	except Exception as e:
+		log("EXCEPTION when sending telegram message:")
+		log(str(e))
 
 def compareImages(inImage1, inImage2, sensitivity):
 	try:
@@ -190,6 +191,7 @@ def initializeMessageReceive(key) -> queue.Queue:
 	return messages
 
 def main():
+	log("Starting camera monitor app.")
 	global configCameraName
 	global logLevel
 	global homebotCommand
@@ -205,6 +207,7 @@ def main():
 	secretTelegramToken = secrets["telegramtoken"]
 	NETWORKAUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"].encode('utf-8')
 
+	log("Setting configurations.")
 	myip = get_local_ip()
 	configs = read_config_file(config_local_file)
 	active = False
@@ -220,6 +223,7 @@ def main():
 	startTime = datetime.now()
 	last_motion = startTime
 
+	log("Connecting to homebot.")
 	homebotSend = initializeMessageSend(NETWORKAUTH)
 	homebotReceive = initializeMessageReceive(NETWORKAUTH)
 
@@ -266,6 +270,7 @@ def main():
 	homebotCommand = None
 	command = None
 	cooldown = True
+	log("Startup complete.")
 
 	while(True):
 		try:
@@ -294,7 +299,7 @@ def main():
 			if command == "snapshot":
 				cameraprimer()
 				ret, snapshotimage = camera.read()
-				snapshotimage = encodeImageWithText(snapshotimage, current_time.strftime("%Y-%m-%d %H:%M:%S"))
+				snapshotimage = encodeImageWithText(snapshotimage, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 				encodeImgSuccess, encoded = cv2.imencode('.jpg', snapshotimage)
 				if not encodeImgSuccess:
 					log("FAILURE ENCODING IMAGE FOR NOTIFICATION!!")
