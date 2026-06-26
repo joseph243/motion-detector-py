@@ -191,6 +191,7 @@ def initializeMessageReceive(key) -> queue.Queue:
 	return messages
 
 def main():
+	log("Starting camera monitor app.")
 	global configCameraName
 	global logLevel
 	global homebotCommand
@@ -206,6 +207,7 @@ def main():
 	secretTelegramToken = secrets["telegramtoken"]
 	NETWORKAUTH = read_secrets(telegram_secrets_local_file)["homebotqueuetoken"].encode('utf-8')
 
+	log("Setting configurations.")
 	myip = get_local_ip()
 	configs = read_config_file(config_local_file)
 	active = False
@@ -221,6 +223,7 @@ def main():
 	startTime = datetime.now()
 	last_motion = startTime
 
+	log("Connecting to homebot.")
 	homebotSend = initializeMessageSend(NETWORKAUTH)
 	homebotReceive = initializeMessageReceive(NETWORKAUTH)
 
@@ -267,6 +270,7 @@ def main():
 	homebotCommand = None
 	command = None
 	cooldown = True
+	log("Startup complete.")
 
 	while(True):
 		try:
