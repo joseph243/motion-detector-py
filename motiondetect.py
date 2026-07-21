@@ -370,7 +370,10 @@ def main():
 			time.sleep(5)
 			continue
 
+		#keep camera active and initialize variables to prevent stale data:
 		camera.read()
+		image1 = None
+		image2 = None
 
 		if (logLevel > 0):
 			log("checking for motion...")
