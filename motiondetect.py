@@ -375,7 +375,7 @@ def main():
 				log(message)
 				send_telegram_message(message)
 				active = False
-			elif command == "Menu":
+			elif command == "menu":
 				message = "Resetting Menu Buttons."
 				log(message)
 				send_telegram_message(message)
