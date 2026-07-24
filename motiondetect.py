@@ -1,4 +1,4 @@
-import cv2, time, numpy, smtplib, os, requests, socket, threading, queue, json
+import cv2, time, numpy, smtplib, os, requests, socket, threading, queue
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
@@ -203,11 +203,9 @@ def initializeMenuButtons():
 			"persistent": True
 		}
 	}
-	data = json.dumps(payload).encode('utf-8')
-	headers = {"Content-Type": "application/json"}
 	try:
 		response = requests.post(
-			url, data, headers
+			url, json=payload
 		)
 		if not response.ok:
 			log(response.text)
