@@ -1,4 +1,4 @@
-import cv2, time, numpy, smtplib, os, requests, socket, threading, queue
+import cv2, time, numpy, smtplib, os, requests, socket, threading, queue, json
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
@@ -190,6 +190,31 @@ def initializeMessageReceive(key) -> queue.Queue:
 	log(f"Listening for messages on {LISTEN_TO_HOST}:{PORT}")
 	return messages
 
+def initializeMenuButtons():
+	url = f"https://api.telegram.org/bot{secretTelegramToken}/sendMessage"
+	payload = {
+		"chat_id": secretTelegramChatId,
+		"text": "Added Menu",
+		"reply_markup": {
+			"keyboard": [
+				[{"text":"▶️"}, {"text":"⏸"}, {"text":"📸"}, {"text":"📊"}]
+			]
+		},
+		"resize_keyboard": True,
+		"persistent": True
+	}
+	data = json.dumps(payload).encode('utf-8')
+	headers = {"Content-Type": "application/json"}
+	try:
+		response = requests.post(
+			url, data, headers
+		)
+		if not response.ok:
+			log(response.text)
+	except Exception as e:
+		log("EXCEPTION when sending telegram message:")
+		log(str(e))
+
 def main():
 	log("Starting camera monitor app.")
 	global configCameraName
@@ -350,6 +375,11 @@ def main():
 				log(message)
 				send_telegram_message(message)
 				active = False
+			elif command == "Menu":
+				message = "Resetting Menu Buttons."
+				log(message)
+				send_telegram_message(message)
+				initializeMenuButtons()
 			else:
 				message = "Unknown command " + command
 				log(message)
