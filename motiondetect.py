@@ -12,22 +12,6 @@ secrets_local_file = "~/.ssh/email.key"
 telegram_secrets_local_file = "~/.ssh/telegram.key"
 config_local_file = "motion.config"
 
-def removePersistentKeyboard():
-    url = f"https://api.telegram.org/bot{secretTelegramToken}/sendMessage"
-    payload = {
-        "chat_id": secretTelegramChatId,
-        "text": "Clearing legacy menu...",
-        "reply_markup": {
-            "remove_keyboard": True
-        }
-    }
-    try:
-        response = requests.post(url, json=payload)
-        if not response.ok:
-            log(response.text)
-    except Exception as e:
-        log("EXCEPTION while removing keyboard: " + str(e))
-
 def get_local_ip():
 	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	try:
@@ -164,14 +148,14 @@ def telegramMessageWatcher(token, authorizedUser):
 					chat_id = message.get("chat", {}).get("id")
 					text = message.get("text")
 					if str(authorizedUser) == str(chat_id):
-						telegram_command = text.lower().replace('\u200b', '')
+						telegramCommand = text.lower()
 				elif "callback_query" in update:
 					cb = update["callback_query"]
 					cbid = cb["id"]
 					cbdata = cb.get("data", "")
 					fromid = cb.get("from", {}).get("id")
 					if (str(authorizedUser) == str(fromid)):
-						telegram_command = cbdata.lower()
+						telegramCommand = cbdata.lower()
 					session.post(
                             f"https://api.telegram.org/bot{token}/answerCallbackQuery",
                             json={"callback_query_id": cbid},
