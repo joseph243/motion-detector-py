@@ -308,9 +308,9 @@ def main():
 	homebotCommand = None
 	command = None
 	cooldown = True
-	log("Startup complete.")
 
-	removePersistentKeyboard()
+	initializeMenuButtons()
+	log("Startup complete.")
 
 	while(True):
 		try:
