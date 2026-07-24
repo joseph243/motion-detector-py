@@ -197,11 +197,11 @@ def initializeMenuButtons():
 		"text": "Added Menu",
 		"reply_markup": {
 			"keyboard": [
-				[{"text":"▶️"}, {"text":"⏸"}, {"text":"📸"}, {"text":"📊"}]
-			]
-		},
-		"resize_keyboard": True,
-		"persistent": True
+				[{"text":"▶️"}, {"text":"⏸"}, {"text":"⏹"}, {"text":"📸"}, {"text":"📊"}]
+			],
+			"resize_keyboard": True,
+			"persistent": True
+		}
 	}
 	data = json.dumps(payload).encode('utf-8')
 	headers = {"Content-Type": "application/json"}
@@ -321,7 +321,7 @@ def main():
 		if command:
 			command = command.lower()
 			command, _, param = command.partition(" ")
-			if command == "snapshot":
+			if command == "snapshot" or command == "📸":
 				cameraprimer()
 				ret, snapshotimage = camera.read()
 				snapshotimage = encodeImageWithText(snapshotimage, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
@@ -331,7 +331,7 @@ def main():
 					continue
 				log("sending snapshot as requested.")
 				send_telegram("Snapshot Requested", encoded.tobytes())
-			elif command == "status":
+			elif command == "status" or command == "📊":
 				stateStr = "Active" if active else "Not Active"
 				notifyStr = "enabled" if configNotificationsAllowed else "disabled"
 				motionStr = str(configIntervalSeconds)
@@ -349,7 +349,7 @@ def main():
 					)
 				log("sending telegram message: " + message)
 				send_telegram_message(message)
-			elif command == "stop":
+			elif command == "stop" or command == "⏹":
 				message = "Stopping per request."
 				log(message)
 				break
@@ -365,12 +365,12 @@ def main():
 					message = "This command expects a number, in minutes, to set message frequency to."
 					log(message)
 				send_telegram_message(message)
-			elif command == "start":
+			elif command == "start" or command == "▶️":
 				message = "Starting per request."
 				log(message)
 				send_telegram_message(message)
 				active = True
-			elif command == "sleep":
+			elif command == "sleep" or command == "⏸":
 				message = "Sleeping camera per request."
 				log(message)
 				send_telegram_message(message)
