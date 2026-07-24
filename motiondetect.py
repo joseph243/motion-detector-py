@@ -12,6 +12,22 @@ secrets_local_file = "~/.ssh/email.key"
 telegram_secrets_local_file = "~/.ssh/telegram.key"
 config_local_file = "motion.config"
 
+def removePersistentKeyboard():
+    url = f"https://api.telegram.org/bot{secretTelegramToken}/sendMessage"
+    payload = {
+        "chat_id": secretTelegramChatId,
+        "text": "Clearing legacy menu...",
+        "reply_markup": {
+            "remove_keyboard": True
+        }
+    }
+    try:
+        response = requests.post(url, json=payload)
+        if not response.ok:
+            log(response.text)
+    except Exception as e:
+        log("EXCEPTION while removing keyboard: " + str(e))
+
 def get_local_ip():
 	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	try:
@@ -142,12 +158,25 @@ def telegramMessageWatcher(token, authorizedUser):
     		)
 			data = r.json()
 			for update in data["result"]:
-				last_update_id = update["update_id"] + 1
-				message = update.get("message", {})
-				chat_id = message.get("chat", {}).get("id")
-				text = message.get("text")
-				if str(authorizedUser) == str(chat_id):
-					telegramCommand = text.lower()
+				last_update_id = update["update_id"] + 1	
+				if "message" in update:
+					message = update.get("message", {})
+					chat_id = message.get("chat", {}).get("id")
+					text = message.get("text")
+					if str(authorizedUser) == str(chat_id):
+						telegram_command = text.lower().replace('\u200b', '')
+				elif "callback_query" in update:
+					cb = update["callback_query"]
+					cbid = cb["id"]
+					cbdata = cb.get("data", "")
+					fromid = cb.get("from", {}).get("id")
+					if (str(authorizedUser) == str(fromid)):
+						telegram_command = cbdata.lower()
+					session.post(
+                            f"https://api.telegram.org/bot{token}/answerCallbackQuery",
+                            json={"callback_query_id": cbid},
+                            timeout=5
+                        )
 		except Exception as e:
 			log(">>telegram polling error" + str(e))
 			time.sleep(5)
@@ -196,11 +225,13 @@ def initializeMenuButtons():
 		"chat_id": secretTelegramChatId,
 		"text": "Added Menu",
 		"reply_markup": {
-			"keyboard": [
-				[{"text":"▶️"}, {"text":"⏸"}, {"text":"⏹"}, {"text":"📸"}, {"text":"📊"}]
+			"inline_keyboard": [
+				[
+				{"text":"▶️", "callback_data": "▶️"}, {"text":"⏸", "callback_data": "⏸"}, 
+	 			{"text":"📸", "callback_data": "📸"}, 
+				{"text":"📊", "callback_data": "📊"}, {"text":"⏹", "callback_data": "⏹"}
+				]
 			],
-			"resize_keyboard": True,
-			"is_persistent": True
 		}
 	}
 	try:
@@ -294,6 +325,8 @@ def main():
 	command = None
 	cooldown = True
 	log("Startup complete.")
+
+	removePersistentKeyboard()
 
 	while(True):
 		try:
