@@ -200,7 +200,7 @@ def initializeMenuButtons():
 				[{"text":"▶️"}, {"text":"⏸"}, {"text":"⏹"}, {"text":"📸"}, {"text":"📊"}]
 			],
 			"resize_keyboard": True,
-			"persistent": True
+			"is_persistent": True
 		}
 	}
 	try:
