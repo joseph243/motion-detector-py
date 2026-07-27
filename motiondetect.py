@@ -142,12 +142,25 @@ def telegramMessageWatcher(token, authorizedUser):
     		)
 			data = r.json()
 			for update in data["result"]:
-				last_update_id = update["update_id"] + 1
-				message = update.get("message", {})
-				chat_id = message.get("chat", {}).get("id")
-				text = message.get("text")
-				if str(authorizedUser) == str(chat_id):
-					telegramCommand = text.lower()
+				last_update_id = update["update_id"] + 1	
+				if "message" in update:
+					message = update.get("message", {})
+					chat_id = message.get("chat", {}).get("id")
+					text = message.get("text")
+					if str(authorizedUser) == str(chat_id):
+						telegramCommand = text.lower()
+				elif "callback_query" in update:
+					cb = update["callback_query"]
+					cbid = cb["id"]
+					cbdata = cb.get("data", "")
+					fromid = cb.get("from", {}).get("id")
+					if (str(authorizedUser) == str(fromid)):
+						telegramCommand = cbdata.lower()
+					session.post(
+                            f"https://api.telegram.org/bot{token}/answerCallbackQuery",
+                            json={"callback_query_id": cbid},
+                            timeout=5
+                        )
 		except Exception as e:
 			log(">>telegram polling error" + str(e))
 			time.sleep(5)
@@ -189,6 +202,31 @@ def initializeMessageReceive(key) -> queue.Queue:
 	thread.start()
 	log(f"Listening for messages on {LISTEN_TO_HOST}:{PORT}")
 	return messages
+
+def initializeMenuButtons():
+	url = f"https://api.telegram.org/bot{secretTelegramToken}/sendMessage"
+	payload = {
+		"chat_id": secretTelegramChatId,
+		"text": "Added Menu",
+		"reply_markup": {
+			"inline_keyboard": [
+				[
+				{"text":"▶️", "callback_data": "▶️"}, {"text":"⏸", "callback_data": "⏸"}, 
+	 			{"text":"📸", "callback_data": "📸"}, 
+				{"text":"📊", "callback_data": "📊"}, {"text":"⏹", "callback_data": "⏹"}
+				]
+			],
+		}
+	}
+	try:
+		response = requests.post(
+			url, json=payload
+		)
+		if not response.ok:
+			log(response.text)
+	except Exception as e:
+		log("EXCEPTION when sending telegram message:")
+		log(str(e))
 
 def main():
 	log("Starting camera monitor app.")
@@ -270,6 +308,8 @@ def main():
 	homebotCommand = None
 	command = None
 	cooldown = True
+
+	initializeMenuButtons()
 	log("Startup complete.")
 
 	while(True):
@@ -296,7 +336,7 @@ def main():
 		if command:
 			command = command.lower()
 			command, _, param = command.partition(" ")
-			if command == "snapshot":
+			if command == "snapshot" or command == "📸":
 				cameraprimer()
 				ret, snapshotimage = camera.read()
 				snapshotimage = encodeImageWithText(snapshotimage, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
@@ -306,7 +346,7 @@ def main():
 					continue
 				log("sending snapshot as requested.")
 				send_telegram("Snapshot Requested", encoded.tobytes())
-			elif command == "status":
+			elif command == "status" or command == "📊":
 				stateStr = "Active" if active else "Not Active"
 				notifyStr = "enabled" if configNotificationsAllowed else "disabled"
 				motionStr = str(configIntervalSeconds)
@@ -324,7 +364,7 @@ def main():
 					)
 				log("sending telegram message: " + message)
 				send_telegram_message(message)
-			elif command == "stop":
+			elif command == "stop" or command == "⏹":
 				message = "Stopping per request."
 				log(message)
 				break
@@ -340,16 +380,21 @@ def main():
 					message = "This command expects a number, in minutes, to set message frequency to."
 					log(message)
 				send_telegram_message(message)
-			elif command == "start":
+			elif command == "start" or command == "▶️":
 				message = "Starting per request."
 				log(message)
 				send_telegram_message(message)
 				active = True
-			elif command == "sleep":
+			elif command == "sleep" or command == "⏸":
 				message = "Sleeping camera per request."
 				log(message)
 				send_telegram_message(message)
 				active = False
+			elif command == "menu":
+				message = "Resetting Menu Buttons."
+				log(message)
+				send_telegram_message(message)
+				initializeMenuButtons()
 			else:
 				message = "Unknown command " + command
 				log(message)
