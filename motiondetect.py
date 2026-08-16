@@ -346,6 +346,7 @@ def main():
 					continue
 				log("sending snapshot as requested.")
 				send_telegram("Snapshot Requested", encoded.tobytes())
+				initializeMenuButtons()
 			elif command == "status" or command == "📊":
 				stateStr = "Active" if active else "Not Active"
 				notifyStr = "enabled" if configNotificationsAllowed else "disabled"
@@ -364,6 +365,7 @@ def main():
 					)
 				log("sending telegram message: " + message)
 				send_telegram_message(message)
+				initializeMenuButtons()
 			elif command == "stop" or command == "⏹":
 				message = "Stopping per request."
 				log(message)
